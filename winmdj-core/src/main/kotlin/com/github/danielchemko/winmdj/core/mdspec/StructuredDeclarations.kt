@@ -1,7 +1,5 @@
 package com.github.danielchemko.winmdj.core.mdspec
 
-import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
-
 /* The target remote object table column values always walk positive integers starting at 1 */
 const val CHILD_LIST_TERMINATOR_ASCENDING = 1
 /* The target remote object table column values are always the same underlying value */

@@ -1,6 +1,6 @@
 package com.github.danielchemko.winmdj.parser
 
-import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
+import com.github.danielchemko.winmdj.core.mdspec.CLRMetadataType
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import kotlin.reflect.KClass

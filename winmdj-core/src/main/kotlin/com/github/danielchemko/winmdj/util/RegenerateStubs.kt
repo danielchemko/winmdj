@@ -44,7 +44,7 @@ fun main(vararg args: String) {
             
             import com.github.danielchemko.winmdj.core.MdObjectMapper
             import com.github.danielchemko.winmdj.core.autoobject.BaseWinMdStub
-            import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
+            import com.github.danielchemko.winmdj.core.mdspec.CLRMetadataType
             import com.github.danielchemko.winmdj.core.mdspec.*
             import com.github.danielchemko.winmdj.parser.WinMdNavigator
             import javax.annotation.processing.Generated

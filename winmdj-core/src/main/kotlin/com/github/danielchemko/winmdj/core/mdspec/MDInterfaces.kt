@@ -1,8 +1,7 @@
 package com.github.danielchemko.winmdj.core.mdspec
 
 import com.github.danielchemko.winmdj.core.MdObjectMapper
-import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
-import com.github.danielchemko.winmdj.core.mdspec.LookupType.*
+import com.github.danielchemko.winmdj.core.mdspec.LookupType.REVERSE_TARGET
 import com.github.danielchemko.winmdj.parser.WinMdNavigator
 import java.util.*
 import kotlin.reflect.KClass

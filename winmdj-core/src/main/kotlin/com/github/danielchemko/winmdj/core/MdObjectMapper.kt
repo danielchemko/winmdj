@@ -2,7 +2,7 @@ package com.github.danielchemko.winmdj.core
 
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.github.benmanes.caffeine.cache.LoadingCache
-import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
+import com.github.danielchemko.winmdj.core.mdspec.CLRMetadataType
 import com.github.danielchemko.winmdj.core.mdspec.ObjectType
 import com.github.danielchemko.winmdj.core.mdspec.WinMdCompositeReference
 import com.github.danielchemko.winmdj.core.mdspec.WinMdObject

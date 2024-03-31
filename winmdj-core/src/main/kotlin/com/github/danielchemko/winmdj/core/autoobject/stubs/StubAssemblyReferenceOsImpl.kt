@@ -3,8 +3,8 @@ package com.github.danielchemko.winmdj.core.autoobject.stubs
 
 import com.github.danielchemko.winmdj.core.MdObjectMapper
 import com.github.danielchemko.winmdj.core.autoobject.BaseWinMdStub
-import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
 import com.github.danielchemko.winmdj.core.mdspec.AssemblyReferenceOs
+import com.github.danielchemko.winmdj.core.mdspec.CLRMetadataType
 import com.github.danielchemko.winmdj.core.mdspec.WinMdStub
 import com.github.danielchemko.winmdj.parser.WinMdNavigator
 import javax.annotation.processing.Generated

@@ -1,7 +1,6 @@
 package com.github.danielchemko.winmdj.core.autoobject
 
 import com.github.danielchemko.winmdj.core.MdObjectMapper
-import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
 import com.github.danielchemko.winmdj.core.mdspec.*
 import com.github.danielchemko.winmdj.parser.LookupTable
 import com.github.danielchemko.winmdj.parser.WinMdNavigator
@@ -13,7 +12,6 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.isSuperclassOf
-import kotlin.text.HexFormat
 
 /* Coded index bits for short coded indices */
 private val bitMaskShort = arrayOf(1.toUShort(), 3.toUShort(), 7.toUShort(), 15.toUShort(), 31.toUShort())
@@ -249,7 +247,7 @@ class BaseWinMdStub(
             val v = getObjectTableValue(type, columnIndex)
             throw IllegalStateException(
                 "Cannot find table class type for pointer: $v (${
-                    v.toString().toUInt().toHexString(HexFormat.UpperCase)
+                    v.toString().toUInt().toHexString(kotlin.text.HexFormat.UpperCase)
                 })"
             )
         }

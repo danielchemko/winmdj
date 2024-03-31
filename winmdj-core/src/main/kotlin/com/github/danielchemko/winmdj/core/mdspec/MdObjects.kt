@@ -1,6 +1,6 @@
 package com.github.danielchemko.winmdj.core.mdspec
 
-import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType.*
+import com.github.danielchemko.winmdj.core.mdspec.CLRMetadataType.*
 import com.github.danielchemko.winmdj.core.mdspec.LookupType.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder

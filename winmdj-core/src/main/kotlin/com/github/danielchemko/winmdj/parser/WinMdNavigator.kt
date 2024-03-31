@@ -1,8 +1,7 @@
 package com.github.danielchemko.winmdj.parser
 
-import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
-import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType.*
 import com.github.danielchemko.winmdj.core.mdspec.*
+import com.github.danielchemko.winmdj.core.mdspec.CLRMetadataType.*
 import com.github.danielchemko.winmdj.util.convertToInt
 import com.github.danielchemko.winmdj.util.fillObject
 import com.github.danielchemko.winmdj.util.parsePrimitive
@@ -17,7 +16,6 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.experimental.and
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
-import kotlin.text.HexFormat
 
 private val PE_HEADER_MAGIC = 0x10B.toUShort()
 private val PE_PLUS_HEADER_MAGIC = 0x20B.toUShort()
@@ -230,9 +228,7 @@ class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) {
                 clrTableRoot += table.size
                 println(
                     "Table Start: ${table.type.toString().padStart(25, ' ')} -- ${
-                        table.startIndex.toHexString(
-                            HexFormat.UpperCase
-                        )
+                        table.startIndex.toHexString(kotlin.text.HexFormat.UpperCase)
                     } -- ${table.columnLayout.columnSizes}"
                 )
             }
