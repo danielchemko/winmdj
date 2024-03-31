@@ -112,3 +112,14 @@ fun <T : Any> parsePrimitive(byteBuffer: ByteBuffer, kClass: KClass<T>): T {
         else -> throw IllegalArgumentException("Unable to interpret primitive class [$kClass] to read")
     }
 }
+
+fun convertToInt(genericPtr: Any): Int {
+    return when (genericPtr) {
+        is UByte -> return genericPtr.toInt()
+        is UShort -> return genericPtr.toInt()
+        is UInt -> return genericPtr.toInt()
+        is ULong -> return genericPtr.toInt()
+        else -> throw IllegalStateException("Unable to convert ${genericPtr::class.simpleName} to Int")
+    }
+}
+

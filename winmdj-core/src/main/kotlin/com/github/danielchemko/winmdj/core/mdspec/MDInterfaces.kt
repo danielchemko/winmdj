@@ -2,6 +2,7 @@ package com.github.danielchemko.winmdj.core.mdspec
 
 import com.github.danielchemko.winmdj.core.MdObjectMapper
 import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
+import com.github.danielchemko.winmdj.core.mdspec.LookupType.*
 import com.github.danielchemko.winmdj.parser.WinMdNavigator
 import java.util.*
 import kotlin.reflect.KClass
@@ -14,6 +15,7 @@ import kotlin.reflect.KClass
 
 sealed interface WinMdCompositeReference
 
+/* All the helper methods used to power the auto-generated stubs to make them a lot simpler */
 interface WinMdStub {
     fun setRowNumberIndex(index: Int)
     fun getRowNumber(): Int
@@ -30,23 +32,14 @@ interface WinMdStub {
     fun <T : WinMdCompositeReference> lookupInterfaceReferent(
         type: CLRMetadataType,
         columnIndex: Int,
-        kClass: KClass<T>
+        interfaceClazz: KClass<T>
     ): T?
 
-    fun <T : WinMdObject> lookupConcreteReferent(type: CLRMetadataType, columnIndex: Int, kClass: KClass<T>): T?
-    fun <T : Any> getReverseReferentSingle(
-        remoteType: CLRMetadataType,
-        remoteColumnIndex: Int,
-        kClass: KClass<T>,
-        matchValue: Any
+    fun <T : WinMdObject> lookupConcreteReferent(
+        type: CLRMetadataType,
+        columnIndex: Int,
+        targetTableClazz: KClass<T>
     ): T?
-
-    fun <T : Any> getReverseReferentPlural(
-        remoteType: CLRMetadataType,
-        remoteColumnIndex: Int,
-        kClass: KClass<T>,
-        matchValue: Any
-    ): List<T>
 
     fun lookupBitset(type: CLRMetadataType, columnIndex: Int): BitSet
     fun <T : ValueEnum<*, *>> lookupBitsetEnum(type: CLRMetadataType, columnIndex: Int, enumClazz: KClass<T>): List<T>
@@ -55,8 +48,18 @@ interface WinMdStub {
         columnIndex: Int,
         subOrdinal: Int,
         childListTerminator: Int,
-        kClass: KClass<T>
+        childClazz: KClass<T>
     ): List<T>
+
+    fun <T : Any> computeReverseLookup(
+        originType: CLRMetadataType,
+        originClass: KClass<*>,
+        ordinal: Int,
+        subOrdinal: Int,
+        childListTerminator: Int,
+        returnType: KClass<T>,
+        returnTypeIsList: Boolean,
+    ): T?
 }
 
 sealed interface WinMdObject {
@@ -67,7 +70,10 @@ sealed interface WinMdObject {
 }
 
 @InterfaceSpec(2, classOrder = ["Module", "ModuleReference", "AssemblyReference", "TypeReference"])
-sealed interface ResolutionScope : WinMdCompositeReference
+sealed interface ResolutionScope : WinMdCompositeReference {
+    @ObjectColumn(REVERSE_TARGET, 0)
+    fun getChildTypeReferences(): List<TypeReference>
+}
 
 @InterfaceSpec(
     5, classOrder = ["MethodDefinition", "Field", "TypeReference", "TypeDefinition", "Parameter",
@@ -75,49 +81,67 @@ sealed interface ResolutionScope : WinMdCompositeReference
         "ModuleReference", "TypeSpecification", "Assembly", "AssemblyReference", "File", "ExportedType",
         "ManifestResource", "GenericParameter", "GenericParameterConstraint", "MethodSpecification"]
 )
-sealed interface HasCustomAttribute : WinMdCompositeReference
+sealed interface HasCustomAttribute : WinMdCompositeReference {
+    @ObjectColumn(REVERSE_TARGET, 0)
+    fun getCustomAttribute(): CustomAttribute?
+}
 
 @InterfaceSpec(2, classOrder = ["TypeDefinition", "TypeReference", "TypeSpecification"])
-sealed interface TypeDefOrRef : WinMdCompositeReference
+sealed interface TypeDefOrRef : WinMdCompositeReference {
+    @ObjectColumn(REVERSE_TARGET, 3)
+    fun getSubTypes(): List<TypeDefinition>
 
-@InterfaceSpec(3, classOrder = ["TypeDefinition", "TypeReference", "ModuleReference", "MethodDefinition", "TypeSpecification"])
-sealed interface MemberRefParent : WinMdCompositeReference
+    @ObjectColumn(REVERSE_TARGET, 2)
+    fun getEvents(): List<Event>
+}
+
+@InterfaceSpec(
+    3,
+    classOrder = ["TypeDefinition", "TypeReference", "ModuleReference", "MethodDefinition", "TypeSpecification"]
+)
+sealed interface MemberRefParent : WinMdCompositeReference {
+    @ObjectColumn(REVERSE_TARGET, 0)
+    fun getMemberReference(): MemberReference?
+}
 
 @InterfaceSpec(2, classOrder = ["Field", "Parameter", "Property"])
 sealed interface HasConstant : WinMdCompositeReference {
-    @ObjectColumn(LookupType.REVERSE_TARGET, 1)
+    @ObjectColumn(REVERSE_TARGET, 1)
     fun getConstant(): Constant?
 }
 
 @InterfaceSpec(1, classOrder = ["TypeDefinition", "MethodDefinition"])
 sealed interface TypeOrMethodDef : WinMdCompositeReference {
-    @ObjectColumn(LookupType.REVERSE_TARGET, 2)
+    @ObjectColumn(REVERSE_TARGET, 2)
     fun getGenericParameters(): List<GenericParameter>
 }
 
 @InterfaceSpec(1, classOrder = ["Field", "Parameter"])
 sealed interface HasFieldMarshal : WinMdCompositeReference {
-    @ObjectColumn(LookupType.REVERSE_TARGET, 0)
+    @ObjectColumn(REVERSE_TARGET, 0)
     fun getFieldMarshal(): FieldMarshal?
 }
 
 @InterfaceSpec(2, classOrder = ["TypeDefinition", "MethodDefinition", "Assembly"])
 sealed interface HasDeclSecurity : WinMdCompositeReference {
-    @ObjectColumn(LookupType.REVERSE_TARGET, 1)
+    @ObjectColumn(REVERSE_TARGET, 1)
     fun getSecurityAttribute(): SecurityAttribute?
 }
 
 @InterfaceSpec(1, classOrder = ["Event", "Property"])
 sealed interface HasSemantics : WinMdCompositeReference {
-    @ObjectColumn(LookupType.REVERSE_TARGET, 0)
-    fun getSemantics(): MethodSemantics
+    @ObjectColumn(REVERSE_TARGET, 2)
+    fun getSemantics(): MethodSemantics?
 }
 
 @InterfaceSpec(1, classOrder = ["MethodDefinition", "MemberReference"])
 sealed interface MethodDefOrRef : WinMdCompositeReference
 
 @InterfaceSpec(1, classOrder = ["Field", "MethodDefinition"])
-sealed interface MemberForwarded : WinMdCompositeReference
+sealed interface MemberForwarded : WinMdCompositeReference {
+    @ObjectColumn(REVERSE_TARGET, 1)
+    fun getImplementationMap(): ImplementationMap?
+}
 
 @InterfaceSpec(2, classOrder = ["File", "AssemblyReference", "ExportedType"])
 sealed interface Implementation : WinMdCompositeReference

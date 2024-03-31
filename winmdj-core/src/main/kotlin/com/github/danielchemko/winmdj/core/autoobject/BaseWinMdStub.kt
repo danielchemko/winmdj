@@ -3,10 +3,23 @@ package com.github.danielchemko.winmdj.core.autoobject
 import com.github.danielchemko.winmdj.core.MdObjectMapper
 import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
 import com.github.danielchemko.winmdj.core.mdspec.*
+import com.github.danielchemko.winmdj.parser.LookupTable
 import com.github.danielchemko.winmdj.parser.WinMdNavigator
+import com.github.danielchemko.winmdj.util.convertToInt
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.isSuperclassOf
+import kotlin.text.HexFormat
+
+/* Coded index bits for short coded indices */
+private val bitMaskShort = arrayOf(1.toUShort(), 3.toUShort(), 7.toUShort(), 15.toUShort(), 31.toUShort())
+
+/* Coded index bits for int coded indices */
+private val bitMask = arrayOf(1.toUInt(), 3.toUInt(), 7.toUInt(), 15.toUInt(), 31.toUInt())
 
 @Suppress("UNCHECKED_CAST") // We evaluate that its always T or fail
 class BaseWinMdStub(
@@ -14,6 +27,7 @@ class BaseWinMdStub(
     private val navigator: WinMdNavigator,
     private var index: Int = 1
 ) : WinMdStub {
+
     override fun getObjectMapper(): MdObjectMapper {
         return objectMapper
     }
@@ -61,8 +75,6 @@ class BaseWinMdStub(
         return navigator.readFromGuid(tableValue)
     }
 
-
-
     override fun <T : ValueEnum<*, *>> lookupBitsetEnum(
         type: CLRMetadataType,
         columnIndex: Int,
@@ -86,6 +98,11 @@ class BaseWinMdStub(
         val targetType = childClazz.findAnnotation<ObjectType>()!!.objectType
         var row = getObjectTableValue(type, columnIndex).toString().toInt()
         val maxIndex = navigator.getCount(targetType)
+
+        if (row > maxIndex) {
+            println("OutOfBoundsPtr detected: $type/${getRowNumber()}/$columnIndex -> $targetType/$row > $maxIndex")
+            return emptyList()
+        }
 
         val childTableSequential = childListTerminator == CHILD_LIST_TERMINATOR_ASCENDING
 
@@ -124,31 +141,32 @@ class BaseWinMdStub(
         return BitSet.valueOf(
             when (tableValue) {
                 is UByte -> byteArrayOf(tableValue.toByte())
-                // TODO double check correct endianness and improve perf
-                is UShort -> byteArrayOf(
-                    (tableValue.toInt() shr 8).toByte(),
-                    (tableValue and 255u).toByte()
-                )
+                is UShort -> ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(tableValue.toShort())
+                    .array()
+//                    byteArrayOf(
+//                    (tableValue.toInt() shr 8).toByte(),
+//                    (tableValue and 255u).toByte()
+//                )
 
-                // TODO double check correct endianness and improve perf
-                is UInt -> byteArrayOf(
-                    (tableValue.toInt() shr 24).toByte(),
-                    (tableValue.toInt() shr 16).toByte(),
-                    (tableValue.toInt() shr 8).toByte(),
-                    (tableValue and 255u).toByte()
-                )
+                is UInt -> ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(tableValue.toInt()).array()
+//                    byteArrayOf(
+//                    (tableValue.toInt() shr 24).toByte(),
+//                    (tableValue.toInt() shr 16).toByte(),
+//                    (tableValue.toInt() shr 8).toByte(),
+//                    (tableValue and 255u).toByte()
+//                )
 
-                // TODO double check correct endianness and improve perf
-                is ULong -> byteArrayOf(
-                    (tableValue.toInt() shr 56).toByte(),
-                    (tableValue.toInt() shr 48).toByte(),
-                    (tableValue.toInt() shr 40).toByte(),
-                    (tableValue.toInt() shr 32).toByte(),
-                    (tableValue.toInt() shr 24).toByte(),
-                    (tableValue.toInt() shr 16).toByte(),
-                    (tableValue.toInt() shr 8).toByte(),
-                    (tableValue and 255u).toByte()
-                )
+                is ULong -> ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(tableValue.toLong()).array()
+//                byteArrayOf(
+//                    (tableValue.toInt() shr 56).toByte(),
+//                    (tableValue.toInt() shr 48).toByte(),
+//                    (tableValue.toInt() shr 40).toByte(),
+//                    (tableValue.toInt() shr 32).toByte(),
+//                    (tableValue.toInt() shr 24).toByte(),
+//                    (tableValue.toInt() shr 16).toByte(),
+//                    (tableValue.toInt() shr 8).toByte(),
+//                    (tableValue and 255u).toByte()
+//                )
 
                 else -> throw IllegalStateException("$tableValue cannot be converted into a Bitset")
             }
@@ -187,31 +205,7 @@ class BaseWinMdStub(
         return navigator.getObjectTableOffset(type, index - 1, columnIndex)
     }
 
-    private val bitMaskShort = arrayOf(
-        1.toUShort(),
-        1.toUShort(),
-        2.toUShort(),
-        2.toUShort(),
-        3.toUShort(),
-        3.toUShort(),
-        4.toUShort(),
-        4.toUShort(),
-        5.toUShort(),
-        5.toUShort()
-    )
-    private val bitMask = arrayOf(
-        1.toUInt(),
-        1.toUInt(),
-        2.toUInt(),
-        2.toUInt(),
-        3.toUInt(),
-        3.toUInt(),
-        4.toUInt(),
-        4.toUInt(),
-        5.toUInt(),
-        5.toUInt()
-    )
-
+    @OptIn(ExperimentalStdlibApi::class)
     override fun <T : WinMdCompositeReference> lookupInterfaceReferent(
         type: CLRMetadataType,
         columnIndex: Int,
@@ -222,33 +216,42 @@ class BaseWinMdStub(
         val typePrefixBitClassOrder = interfaceSpec.classOrder
         // TODO can be done a lot more efficiently by pre-allocating a lot of these structs
         val compatibleTypes = interfaceClazz.sealedSubclasses.map { it.findAnnotation<ObjectType>()!!.objectType to it }
-        val targetTableClazz: KClass<out WinMdObject>
+        val targetTableClazz: KClass<out WinMdObject>?
         val rowNum: Int
         when (val fieldPointer = getObjectTableValue(type, columnIndex)) {
             is UByte -> throw IllegalStateException("Bytes cannot hold pointer references")
             is UShort -> {
                 rowNum = (fieldPointer.toInt() shr typePrefixBits)
-                if(rowNum == 0) {
+                if (rowNum == 0) {
                     return null
                 }
-                val tableBitset = (fieldPointer and bitMaskShort[typePrefixBits]).toInt()
+                val tableBitset = (fieldPointer and bitMaskShort[typePrefixBits - 1]).toInt()
                 targetTableClazz =
-                    compatibleTypes.first { it.second.simpleName == typePrefixBitClassOrder[tableBitset] }.second as KClass<out WinMdObject>
+                    compatibleTypes.firstOrNull { it.second.simpleName == typePrefixBitClassOrder[tableBitset] }?.second as KClass<out WinMdObject>?
             }
 
             is UInt -> {
                 rowNum = (fieldPointer.toInt() shr typePrefixBits)
-                if(rowNum == 0) {
+                if (rowNum == 0) {
                     return null
                 }
-                val tableBitset = (fieldPointer and bitMask[typePrefixBits]).toInt()
+                val tableBitset = (fieldPointer and bitMask[typePrefixBits - 1]).toInt()
                 targetTableClazz =
-                    compatibleTypes.first { it.second.simpleName == typePrefixBitClassOrder[tableBitset] }.second as KClass<out WinMdObject>
+                    compatibleTypes.firstOrNull { it.second.simpleName == typePrefixBitClassOrder[tableBitset] }?.second as KClass<out WinMdObject>?
             }
 
             is ULong -> throw IllegalStateException("Longs cannot hold pointer references")
 
             else -> throw IllegalStateException("${fieldPointer::class.simpleName} cannot hold pointer references")
+        }
+
+        if (targetTableClazz == null) {
+            val v = getObjectTableValue(type, columnIndex)
+            throw IllegalStateException(
+                "Cannot find table class type for pointer: $v (${
+                    v.toString().toUInt().toHexString(HexFormat.UpperCase)
+                })"
+            )
         }
 
         return getObjectMapper().getCursor(targetTableClazz.java).get(rowNum) as T
@@ -260,30 +263,162 @@ class BaseWinMdStub(
         targetTableClazz: KClass<T>
     ): T? {
         val rowNumber = getObjectTableValue(type, columnIndex)
-        if(rowNumber == 0) {
+        if (rowNumber == 0) {
             return null
         }
         return getObjectMapper().getCursor(targetTableClazz.java).get(rowNumber.toString().toInt())
     }
 
+    private fun getChildListHeadRow(
+        originType: CLRMetadataType,
+        sourceRow: Int,
+        column: Int,
+        childListTerminator: Int
+    ): Int {
+        if (childListTerminator == CHILD_LIST_TERMINATOR_REPEATING) {
+            val firstRowValue = getRandomObjectTableValue(originType, sourceRow, column)
+            var rowRef = sourceRow
+            while (rowRef > 0) {
+                if (getRandomObjectTableValue(originType, rowRef, column) != firstRowValue) {
+                    return rowRef + 1
+                } else {
+                    rowRef--
+                }
+            }
+            return 1 // We're at the top of the table, and we never found a non-matching result
+        } else if (childListTerminator == CHILD_LIST_TERMINATOR_ASCENDING) {
+            var lastRowValue = getRandomObjectTableValue(originType, sourceRow, column).toString().toInt()
+            var rowRef = sourceRow
+            while (rowRef > 0) {
+                val currRowValue = getRandomObjectTableValue(originType, rowRef, column).toString().toInt()
+                if (currRowValue >= lastRowValue) {
+                    return rowRef + 1
+                } else {
+                    lastRowValue = currRowValue
+                    rowRef--
+                }
+            }
+            return 1 // We're at the top of the table, and we never found a higher integer
+        } else {
+            throw IllegalStateException("Child list terminator $childListTerminator not supported")
+        }
+    }
 
-    /* TODO cached search first run?? */
-    override fun <T : Any> getReverseReferentSingle(
+    private fun calculateReversePtr(
+        returnType: KClass<out WinMdObject>,
+        interfaceImplClazz: KClass<out WinMdCompositeReference>,
+        reverseRowTarget: Int
+    ): Int {
+        val spec = interfaceImplClazz.findAnnotation<InterfaceSpec>()!!
+        val tablePtr = spec.classOrder.indexOfFirst { it == returnType.simpleName }
+        return ((reverseRowTarget.toUInt().toULong() shl spec.typePrefixBits).toInt() or tablePtr)
+    }
+
+    /**
+     * Pretty overloaded function depending on the return type being requested, which ultimately dictates the strategy
+     * to solve this relationship
+     *
+     * 1. RETURN TYPE is Singular (class); Ordinal should be > 0
+     * 2. RETURN TYPE is Plural (class); Ordinal should be > 0
+     * 3. RETURN TYPE is Singular (Interface); Ordinal determined by the first function on remote which contains this matching return type
+     * 4. RETURN TYPE is Plural (Interface); Ordinal determined by the first function on remote which contains this matching return type
+     */
+    override fun <T : Any> computeReverseLookup(
+        originType: CLRMetadataType,
+        originClass: KClass<*>,
+        ordinal: Int,
+        subOrdinal: Int,
+        childListTerminator: Int,
+        returnType: KClass<T>,
+        returnTypeIsList: Boolean,
+    ): T? {
+        if (returnTypeIsList) {
+            if (WinMdObject::class.isSuperclassOf(returnType)) {
+                val destinationType = returnType.findAnnotation<ObjectType>()!!.objectType
+
+                val selfToken = getRowNumber()
+                val foreignCursor = getObjectMapper().getCursor(returnType.java as Class<out WinMdObject>)
+
+                val max = getNavigator().getCount(destinationType)
+                return (1..max)
+                    .filter { row -> getRandomObjectTableValue(destinationType, row, ordinal) == selfToken }
+                    .map { row -> foreignCursor.get(row) }.toList() as T
+            } else {
+                // Interface type matching
+                TODO()
+            }
+        } else {
+            //TODO determine if this is a child reference or a child list head... only way currently is subOrdinal > -1???
+            val reverseRowTarget: Int
+            if (subOrdinal > -1) {
+                reverseRowTarget = getChildListHeadRow(originType, getRowNumber(), subOrdinal, childListTerminator)
+                if (reverseRowTarget == 0) {
+                    return null
+                }
+            } else {
+                reverseRowTarget = getRowNumber()
+            }
+
+            if (WinMdObject::class.isSuperclassOf(returnType)) {
+                val destinationType = returnType.findAnnotation<ObjectType>()!!.objectType
+                return getReverseReferentSingle(destinationType, ordinal, returnType, reverseRowTarget)
+            } else {
+                returnType.sealedSubclasses.forEach { interfaceImplClazz ->
+                    val reverseRowTargetPtr = calculateReversePtr(
+                        originClass as KClass<out WinMdObject>,
+                        returnType as KClass<out WinMdCompositeReference>,
+                        reverseRowTarget
+                    )
+                    val candidateType = interfaceImplClazz.findAnnotation<ObjectType>()!!.objectType
+                    getReverseReferentSingle(
+                        candidateType,
+                        ordinal,
+                        returnType,
+                        reverseRowTargetPtr
+                    )?.let { return it as T }
+                }
+                return null // No Interfaces have the row target
+            }
+        }
+    }
+
+    private fun <T : Any> getReverseReferentSingle(
         remoteType: CLRMetadataType,
         remoteColumnIndex: Int,
         kClass: KClass<T>,
         matchValue: Any
     ): T? {
-        TODO("Not yet implemented")
-    }
+        val rowCount = navigator.getCount(remoteType)
+        val matchValueInt = matchValue.toString().toInt()
 
-    /* TODO cached search first run?? */
-    override fun <T : Any> getReverseReferentPlural(
-        remoteType: CLRMetadataType,
-        remoteColumnIndex: Int,
-        kClass: KClass<T>,
-        matchValue: Any
-    ): List<T> {
-        TODO("Not yet implemented")
+        val resolvedLookupTable =
+            navigator.reverseLookupSingulars.computeIfAbsent(
+                LookupTable(
+                    remoteType,
+                    remoteColumnIndex
+                )
+            ) { lookupTable ->
+                val startTime = System.nanoTime()
+                try {
+                    val tableLookup = ConcurrentHashMap<Any, Any?>()
+                    (1..rowCount).forEach { row ->
+                        tableLookup[convertToInt(
+                            getRandomObjectTableValue(
+                                lookupTable.type,
+                                row,
+                                lookupTable.column
+                            )
+                        )] = row
+                    }
+                    tableLookup
+                } finally {
+                    val duration = System.nanoTime() - startTime
+                    println("Cache build [$remoteType/$remoteColumnIndex] took ${duration / 1000000.0}ms")
+                }
+            }
+
+        val foundRow = resolvedLookupTable[matchValueInt]?.toString()?.toInt() ?: return null
+
+        return getObjectMapper().getCursor(kClass.java as Class<out WinMdObject>).get(foundRow) as T
     }
 }

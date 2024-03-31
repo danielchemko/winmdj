@@ -84,17 +84,15 @@ interface TypeDefinition : WinMdObject, TypeDefOrRef, TypeOrMethodDef, HasDeclSe
 
     /* IN relationships */
 
-    @ObjectColumn(REVERSE_TARGET, 2)
-    fun getSubclasses(): List<TypeDefinition>
-
     @ObjectColumn(REVERSE_TARGET, 0)
     fun getInterfaceImpl(): List<InterfaceImplementation>
 
+    //??
+    @ObjectColumn(REVERSE_TARGET, 1)
+    fun getInterfaceDecl(): List<InterfaceImplementation>
+
     @ObjectColumn(REVERSE_TARGET, 0)
     fun getPropertyMaps(): List<PropertyMap>
-
-    @ObjectColumn(REVERSE_TARGET, 2)
-    fun getEvents(): List<Event>
 
     @ObjectColumn(REVERSE_TARGET, 2)
     fun getMethodImplementations(): List<MethodImplementation>
@@ -161,27 +159,8 @@ interface Field : WinMdObject, HasConstant, HasFieldMarshal, MemberForwarded, Ha
 
     /* IN Relationships */
 
-    /* Field Parent is one-off, we look for the special field above, and use that as our REVERSE_TARGET */
-    fun getParent(): TypeDefinition? {
-
-        // TODO is this a generalized patter we should rollup into the builder?
-
-        val stub = getStub()
-        var rowNum = stub.getRowNumber()
-
-        /* Need a new instance of a field cursor to iterate and find our special head marker */
-        val cursor = stub.getObjectMapper().getCursor(Field::class.java)
-        val refField = cursor.get(rowNum)
-        while (rowNum >= 0 && !refField.isRtSpecialName()) {
-            refField.getStub().setRowNumberIndex(--rowNum)
-        }
-
-        if (rowNum < 0) {
-            throw IllegalStateException("Unable to find head of field list. Start Row:[${stub.getRowNumber()}]")
-        }
-
-        return getStub().getReverseReferentSingle(TYPE_DEF, 5, TypeDefinition::class, rowNum)
-    }
+    @ObjectColumn(REVERSE_TARGET, 4)
+    fun getParent(): TypeDefinition?
 }
 
 @ObjectType(METHOD_DEF)
@@ -209,10 +188,8 @@ interface MethodDefinition : WinMdObject, TypeOrMethodDef, HasDeclSecurity, Memb
 
     /* IN Relationships */
 
-    /* Step up through the table to find the first instance of our signature (col:4). Then perform a reverse target
-     * lookup in the TypeDefinition table by searching their method-list field (col:5) to match the method's token */
     @ObjectColumn(REVERSE_TARGET, 5, 4, childListTerminator = CHILD_LIST_TERMINATOR_REPEATING)
-    fun getParent(): TypeDefinition
+    fun getParent(): TypeDefinition?
 }
 
 @ObjectType(PARAM)
@@ -353,7 +330,7 @@ interface Constant : WinMdObject {
 @ObjectType(CUSTOM_ATTRIBUTE)
 interface CustomAttribute : WinMdObject {
     @ObjectColumn(TARGET, 0)
-    fun getParent(): HasCustomAttribute
+    fun getParent(): HasCustomAttribute?
 
     @ObjectColumn(TARGET, 1)
     fun getConstructor(): CustomAttributeType?
@@ -478,7 +455,7 @@ interface MethodSemantics : WinMdObject {
     fun getMethod(): MethodDefinition?
 
     @ObjectColumn(TARGET, 2)
-    fun getParent(): HasSemantics?
+    fun getAssociation(): HasSemantics?
 }
 
 @ObjectType(METHOD_IMPL)

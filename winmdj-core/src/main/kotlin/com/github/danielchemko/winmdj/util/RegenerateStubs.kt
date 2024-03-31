@@ -1,6 +1,9 @@
 package com.github.danielchemko.winmdj.util
 
-import com.github.danielchemko.winmdj.core.mdspec.*
+import com.github.danielchemko.winmdj.core.mdspec.LookupType
+import com.github.danielchemko.winmdj.core.mdspec.ObjectColumn
+import com.github.danielchemko.winmdj.core.mdspec.ObjectType
+import com.github.danielchemko.winmdj.core.mdspec.WinMdObject
 import java.nio.file.Path
 import kotlin.io.path.writer
 import kotlin.reflect.KClass
@@ -79,8 +82,9 @@ fun main(vararg args: String) {
                     methodOverrides.map { func ->
                         val column = func.findAnnotation<ObjectColumn>()!!
                         val table = column.table
-                        val tableColumn = column.ordinal
+                        val ordinal = column.ordinal
                         val subOrdinal = column.subOrdinal
+                        val childListTerminator = column.childListTerminator
                         """
                             override fun ${func.name}(): ${func.returnType} {
                                 ${
@@ -88,25 +92,25 @@ fun main(vararg args: String) {
                                 LookupType.TABLE_VALUE -> {
                                     val mandatorySuffix = if (!func.returnType.isMarkedNullable) "!!" else ""
                                     """
-                                        return stub.lookupTableValue(CLRMetadataType.${objectType.name}, ${tableColumn}, ${func.returnType}::class)$mandatorySuffix
+                                        return stub.lookupTableValue(CLRMetadataType.${objectType.name}, $ordinal, ${func.returnType}::class)$mandatorySuffix
                                     """.replaceIndent("")
                                 }
 
                                 LookupType.STRING -> {
                                     """
-                                        return stub.lookupString(CLRMetadataType.${objectType.name}, ${tableColumn})
+                                        return stub.lookupString(CLRMetadataType.${objectType.name}, $ordinal)
                                     """.replaceIndent("")
                                 }
 
                                 LookupType.BLOB -> {
                                     """
-                                        return stub.lookupBlob(CLRMetadataType.${objectType.name}, ${tableColumn})
+                                        return stub.lookupBlob(CLRMetadataType.${objectType.name}, $ordinal)
                                     """.replaceIndent("")
                                 }
 
                                 LookupType.GUID -> {
                                     """
-                                        return stub.lookupGuid(CLRMetadataType.${objectType.name}, ${tableColumn})
+                                        return stub.lookupGuid(CLRMetadataType.${objectType.name}, $ordinal)
                                     """.replaceIndent("")
                                 }
 
@@ -118,11 +122,11 @@ fun main(vararg args: String) {
 
                                     if (WinMdObject::class.isSuperclassOf(returnClz)) {
                                         """
-                                            return stub.lookupConcreteReferent(CLRMetadataType.${objectType.name}, ${tableColumn}, ${returnClzQualified}::class)$mandatorySuffix
+                                            return stub.lookupConcreteReferent(CLRMetadataType.${objectType.name}, $ordinal, ${returnClzQualified}::class)$mandatorySuffix
                                         """.trimIndent()
                                     } else {
                                         """
-                                            return stub.lookupInterfaceReferent(CLRMetadataType.${objectType.name}, ${tableColumn}, ${returnClzQualified}::class)$mandatorySuffix
+                                            return stub.lookupInterfaceReferent(CLRMetadataType.${objectType.name}, $ordinal, ${returnClzQualified}::class)$mandatorySuffix
                                         """.trimIndent()
                                     }
                                 }
@@ -132,7 +136,7 @@ fun main(vararg args: String) {
                                     val returnClz = (func.returnType.arguments[0]!!.type!!.classifier!! as KClass<*>)
                                     """
                                         val column = 
-                                        return stub.lookupList(CLRMetadataType.${objectType.name}, ${tableColumn}, ${column.subOrdinal}, ${column.childListTerminator}, ${returnClz.qualifiedName}::class)
+                                        return stub.lookupList(CLRMetadataType.${objectType.name}, $ordinal, ${column.subOrdinal}, ${column.childListTerminator}, ${returnClz.qualifiedName}::class)
                                     """.replaceIndent("")
                                 }
 
@@ -140,100 +144,35 @@ fun main(vararg args: String) {
                                     val returnClz = func.returnType.arguments[0]!!.type!!.classifier!! as KClass<*>
                                     val returnClzQualified = returnClz.qualifiedName
                                     """
-                                        return stub.lookupBitsetEnum(CLRMetadataType.${objectType.name}, ${tableColumn}, ${returnClzQualified}::class)
+                                        return stub.lookupBitsetEnum(CLRMetadataType.${objectType.name}, $ordinal, ${returnClzQualified}::class)
                                     """.trimIndent()
                                 }
 
                                 LookupType.BITSET -> {
                                     """
-                                        return stub.lookupBitset(CLRMetadataType.${objectType.name}, ${tableColumn})
+                                        return stub.lookupBitset(CLRMetadataType.${objectType.name}, $ordinal)
                                     """.trimIndent()
                                 }
 
                                 LookupType.REVERSE_TARGET -> {
-                                    // TODO NOTE WHEN IMPLEMENTING THIS ONE, IT CAN BE ONE OF the following:
-                                    // 1. RETURN TYPE is Singular (class); Ordinal should be > 0
-                                    // 2. RETURN TYPE is Plural (class); Ordinal should be > 0
-                                    // 3. RETURN TYPE is Singular (Interface); Ordinal determined by the first function on remote which contains this matching return type 
-                                    // 4. RETURN TYPE is Plural (Interface); Ordinal determined by the first function on remote which contains this matching return type
-
-                                    // Pull out the type from the list generic
-                                    var returnClz = func.returnType.classifier!! as KClass<*>
-                                    if (List::class.isSuperclassOf(returnClz)) {
-                                        returnClz = func.returnType.arguments[0]!!.type!!.classifier!! as KClass<*>
-                                        val returnClzQualified = returnClz.qualifiedName
-
-                                        if (WinMdObject::class.isSuperclassOf(returnClz)) {
-                                            val type = returnClz.findAnnotation<ObjectType>()!!.objectType
-
-                                            // TODO Find each item in the compatible type return list
-                                            """
-                                                val selfToken = getStub().getRowNumber()
-                                                val foreignCursor = getStub().getObjectMapper().getCursor(${returnClzQualified}::class.java)
-                                                
-                                                val max = getStub().getNavigator().getCount(CLRMetadataType.${type.name})
-                                                return (1 .. max)
-                                                   .filter {row-> getStub().getRandomObjectTableValue(CLRMetadataType.${type.name}, row, 0) == selfToken }
-                                                   .map{row->foreignCursor.get(row)}.toList()
-                                            """.trimIndent()
-                                        } else {
-                                            // TODO Find each list of results from each compatible type and merge them
-                                            """
-                                                TODO()
-                                                val foundItems = getObjectMapper().map { it }.filter { getValueFor() }
-                                            """.trimIndent()
-                                        }
+                                    val returnType = func.returnType
+                                    val isList = List::class.isSuperclassOf(returnType.classifier as KClass<*>)
+                                    val returnClz = if (isList) {
+                                        returnType.arguments[0].type!!.classifier!! as KClass<*>
                                     } else {
-                                        val returnObjectType = returnClz.findAnnotation<ObjectType>()!!.objectType
-                                        val mandatorySuffix = if (!func.returnType.isMarkedNullable) "!!" else ""
-                                        if (WinMdObject::class.isSuperclassOf(returnClz)) {
-                                            if (column.childListTerminator == CHILD_LIST_TERMINATOR_REPEATING) {
-                                                """
-                                                val stubsCursor = getStub().getObjectMapper().getCursor(${interfaceClazz.qualifiedName}::class.java)
-                                                var rowRef = getStub().getRowNumber() - 1;
-                                                var highestMethod: ${interfaceClazz.qualifiedName} = this
-                                                while (rowRef >= 0) {
-                                                    val refMethod = stubsCursor.get(rowRef--)
-                                                    if (refMethod.getStub().getObjectTableValue(CLRMetadataType.${objectType.name}, $subOrdinal) != getStub().getObjectTableValue(CLRMetadataType.${objectType.name}, $subOrdinal)) {
-                                                        return getStub().getReverseReferentSingle(CLRMetadataType.${returnObjectType.name},  ${subOrdinal}, ${returnClz.qualifiedName}::class, highestMethod.getToken())$mandatorySuffix
-                                                    } else {
-                                                        highestMethod = refMethod
-                                                    }
-                                                }
-                                                throw IllegalStateException("Unable to find a parent reference for Method:[${'$'}highestMethod]")
-                                                """.trimIndent()
-                                            } else if (column.childListTerminator == CHILD_LIST_TERMINATOR_ASCENDING) {
-                                                """
-                                                val stubsCursor = getStub().getObjectMapper().getCursor(${interfaceClazz.qualifiedName}::class.java)
-                                                var rowRef = getStub().getRowNumber() - 1;
-                                                var highestMethod: ${interfaceClazz.qualifiedName} = this
-                                                while (rowRef >= 0) {
-                                                    val refMethod = stubsCursor.get(rowRef--)
-                                                    if (refMethod.getStub().getObjectTableValue(CLRMetadataType.${objectType.name}, $subOrdinal) > highestMethod.getStub().getObjectTableValue(CLRMetadataType.${objectType.name},$subOrdinal)) {
-                                                        return getStub().getReverseReferentSingle(CLRMetadataType.${returnObjectType.name}, ${subOrdinal}, ${returnClz.qualifiedName}::class, highestMethod.getToken())$mandatorySuffix
-                                                    } else {
-                                                        highestMethod = refMethod 
-                                                    }
-                                                }
-                                                throw IllegalStateException("Unable to find a parent reference for Method:[${'$'}highestMethod]")
-                                                """.trimIndent()
-                                            } else {
-                                                """
-                                                val stubsCursor = getStub().getObjectMapper().getCursor(${interfaceClazz.qualifiedName}::class.java)
-                                                var rowRef = getStub().getRowNumber() - 1;
-                                                var highestMethod: ${interfaceClazz.qualifiedName} = this
-                                                return getStub().getReverseReferentSingle(CLRMetadataType.${returnObjectType.name}, ${subOrdinal}, ${returnClz.qualifiedName}::class, highestMethod.getToken())$mandatorySuffix
-                                                """.trimIndent()
-                                            }
-                                        } else {
-                                            // TODO Find first instance of the matching value within the list of candidate objects
-                                            """
-                                                return ${returnClz.qualifiedName}::class.sealedSubclasses.firstNotNullOf { clazz ->
-                                                    stub.getObjectMapper().getInterfaceCursor(${returnClz.qualifiedName}::class.java).map { it }.firstOrNull()
-                                                }
-                                            """.trimIndent()
-                                        }
+                                        returnType.classifier!! as KClass<*>
                                     }
+                                    val mandatorySuffix = if (!func.returnType.isMarkedNullable) "!!" else ""
+                                    """
+                                        return getStub().computeReverseLookup(CLRMetadataType.${objectType.name},
+                                            ${interfaceName}::class,
+                                            $ordinal,
+                                            $subOrdinal,
+                                            $childListTerminator,
+                                            ${returnClz.qualifiedName}::class,
+                                            $isList,
+                                        )$mandatorySuffix as ${func.returnType}
+                                    """.trimIndent()
                                 }
                             }
                         }
@@ -253,3 +192,81 @@ fun main(vararg args: String) {
         }
     }
 }
+
+
+//                                    // Pull out the type from the list generic
+//                                    var returnClz = func.returnType.classifier!! as KClass<*>
+//                                    if (List::class.isSuperclassOf(returnClz)) {
+//                                        returnClz = func.returnType.arguments[0]!!.type!!.classifier!! as KClass<*>
+//                                        val returnClzQualified = returnClz.qualifiedName
+//
+//                                        if (WinMdObject::class.isSuperclassOf(returnClz)) {
+//                                            val type = returnClz.findAnnotation<ObjectType>()!!.objectType
+//
+//                                            // TODO Find each item in the compatible type return list
+//                                            """
+//                                                val selfToken = getStub().getRowNumber()
+//                                                val foreignCursor = getStub().getObjectMapper().getCursor(${returnClzQualified}::class.java)
+//
+//                                                val max = getStub().getNavigator().getCount(CLRMetadataType.${type.name})
+//                                                return (1 .. max)
+//                                                   .filter {row-> getStub().getRandomObjectTableValue(CLRMetadataType.${type.name}, row, 0) == selfToken }
+//                                                   .map{row->foreignCursor.get(row)}.toList()
+//                                            """.trimIndent()
+//                                        } else {
+//                                            // TODO Find each list of results from each compatible type and merge them
+//                                            """
+//                                                TODO()
+//                                                val foundItems = getObjectMapper().map { it }.filter { getValueFor() }
+//                                            """.trimIndent()
+//                                        }
+//                                    } else {
+//                                        val returnObjectType = returnClz.findAnnotation<ObjectType>()!!.objectType
+//                                        val mandatorySuffix = if (!func.returnType.isMarkedNullable) "!!" else ""
+//                                        if (WinMdObject::class.isSuperclassOf(returnClz)) {
+//                                            if (column.childListTerminator == CHILD_LIST_TERMINATOR_REPEATING) {
+//                                                """
+//                                                val stubsCursor = getStub().getObjectMapper().getCursor(${interfaceClazz.qualifiedName}::class.java)
+//                                                var rowRef = getStub().getRowNumber() - 1;
+//                                                var highestMethod: ${interfaceClazz.qualifiedName} = this
+//                                                while (rowRef >= 0) {
+//                                                    val refMethod = stubsCursor.get(rowRef--)
+//                                                    if (refMethod.getStub().getObjectTableValue(CLRMetadataType.${objectType.name}, $subOrdinal) != getStub().getObjectTableValue(CLRMetadataType.${objectType.name}, $subOrdinal)) {
+//                                                        return getStub().getReverseReferentSingle(CLRMetadataType.${returnObjectType.name},  ${tableColumn}, ${returnClz.qualifiedName}::class, highestMethod.getToken())$mandatorySuffix
+//                                                    } else {
+//                                                        highestMethod = refMethod
+//                                                    }
+//                                                }
+//                                                throw IllegalStateException("Unable to find a parent reference for Method:[${'$'}highestMethod]")
+//                                                """.trimIndent()
+//                                            } else if (column.childListTerminator == CHILD_LIST_TERMINATOR_ASCENDING) {
+//                                                """
+//                                                val stubsCursor = getStub().getObjectMapper().getCursor(${interfaceClazz.qualifiedName}::class.java)
+//                                                var rowRef = getStub().getRowNumber() - 1;
+//                                                var highestMethod: ${interfaceClazz.qualifiedName} = this
+//                                                while (rowRef >= 0) {
+//                                                    val refMethod = stubsCursor.get(rowRef--)
+//                                                    if (refMethod.getStub().getObjectTableValue(CLRMetadataType.${objectType.name}, $subOrdinal) > highestMethod.getStub().getObjectTableValue(CLRMetadataType.${objectType.name},$subOrdinal)) {
+//                                                        return getStub().getReverseReferentSingle(CLRMetadataType.${returnObjectType.name}, ${tableColumn}, ${returnClz.qualifiedName}::class, highestMethod.getToken())$mandatorySuffix
+//                                                    } else {
+//                                                        highestMethod = refMethod
+//                                                    }
+//                                                }
+//                                                throw IllegalStateException("Unable to find a parent reference for Method:[${'$'}highestMethod]")
+//                                                """.trimIndent()
+//                                            } else {
+//                                                """
+//                                                val stubsCursor = getStub().getObjectMapper().getCursor(${interfaceClazz.qualifiedName}::class.java)
+//                                                var highestMethod: ${interfaceClazz.qualifiedName} = this
+//                                                return getStub().getReverseReferentSingle(CLRMetadataType.${returnObjectType.name}, ${tableColumn}, ${returnClz.qualifiedName}::class, highestMethod.getToken())$mandatorySuffix
+//                                                """.trimIndent()
+//                                            }
+//                                        } else {
+//                                            // TODO Find first instance of the matching value within the list of candidate objects
+//                                            """
+//                                                return ${returnClz.qualifiedName}::class.sealedSubclasses.firstNotNullOf { clazz ->
+//                                                    stub.getObjectMapper().getInterfaceCursor(${returnClz.qualifiedName}::class.java).map { it }.firstOrNull()
+//                                                }
+//                                            """.trimIndent()
+//                                        }
+//                                    }

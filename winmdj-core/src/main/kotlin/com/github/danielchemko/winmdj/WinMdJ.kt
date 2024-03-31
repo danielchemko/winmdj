@@ -3,6 +3,8 @@ package com.github.danielchemko.winmdj
 import com.github.danielchemko.winmdj.core.MdObjectMapper
 import com.github.danielchemko.winmdj.core.mdspec.ObjectType
 import com.github.danielchemko.winmdj.core.mdspec.WinMdObject
+import com.github.danielchemko.winmdj.parser.NavigatorQuirk
+import com.github.danielchemko.winmdj.parser.ResolutionScopeAsShort
 import com.github.danielchemko.winmdj.parser.WinMdNavigator
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
@@ -12,7 +14,6 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
-import kotlin.text.HexFormat
 
 private val EXCLUDED_FUNCTIONS = setOf(
     "equals",
@@ -38,40 +39,34 @@ private val EXCLUDED_FUNCTIONS = setOf(
     "getStub",
 )
 
-@OptIn(ExperimentalStdlibApi::class)
+
+/**
+ * This is a test runner to perform sanity testing of this solution over many different COFF/WinMD compatible CLR table
+ * files. This isn't intended to do anything valuable, just sanity test that this solution should be able to decode the
+ * file specified.
+ */
 fun main(vararg args: String) {
-    val navigator = WinMdNavigator()
-    navigator.parseFile(Path.of("Windows.Win32.winmd"))
-//    navigator.parseFile(Path.of("C:/Users/dchemko/Desktop/ILSpy_selfcontained_8.2.0.7535-x64/System.Private.CoreLib.dll"))
+    processFile(Path.of("Windows.Win32.winmd"), ResolutionScopeAsShort)
+    processFile(Path.of("C:/Program Files/ILSpy_selfcontained_8.2.0.7535-x64/System.Private.CoreLib.dll"))
+    processFile(Path.of("C:/Program Files/ILSpy_selfcontained_8.2.0.7535-x64/WindowsBase.dll"))
 
-//    val path = Path.of("C:/Windows/System32")
-//    path.toFile().list().filter { it.contains(".dll") || it.contains(".exe") }.map { path.resolve(it) }.forEach {
-//        try {
-//            println(it.name)
-//            navigator.parseFile(it)
-//        } catch (e: Exception) {
-//            println(e.message)
-//        }
-//    }
-//    val path = Path.of("C:/Windows/System32/srmlib.dll")
-//    navigator.parseFile(path)
+    val path = Path.of("C:/Windows/System32")
+    path.toFile().list()!!.filter { it.contains(".dll") || it.contains(".exe") }.map { path.resolve(it) }.forEach {
+        try {
+            processFile(it)
+        } catch (e: Exception) {
+            println(e.message)
+        }
+    }
+}
 
-
+@OptIn(ExperimentalStdlibApi::class)
+fun processFile(path: Path, vararg quirks: NavigatorQuirk) {
+    val navigator = WinMdNavigator(quirks.toSet())
+    navigator.parseFile(path)
     val objectMapper = MdObjectMapper(navigator)
-
-//    objectMapper.getCursor(Constant::class.java).forEach { obj ->
-//        try {
-//            println("Constant/${obj.getToken()}/${obj.getType()} -- ${obj.getValue()}")
-//            successes++
-//        } catch (e: Exception) {
-//            failures++
-////            println("StubConstantImpl/${obj.getToken().toUInt().toHexString(HexFormat.UpperCase)} -- !!FAILED!! -- ${e.message}")
-//        }
-//    }
-
     var successes = 0
     var failures = 0
-    val showMessage = false
 
     val failureCombinations = ConcurrentHashMap<KClass<*>, ConcurrentHashMap<String, AtomicLong>>()
 
@@ -79,6 +74,9 @@ fun main(vararg args: String) {
     val printingOkFunctions = mutableMapOf<KFunction<*>, AtomicInteger>()
     val badFunctions = mutableSetOf<KFunction<*>>()
     val failingFunctions = mutableMapOf<KFunction<*>, AtomicInteger>()
+
+    val printErrors = true
+    val printOk = true
 
     WinMdObject::class.sealedSubclasses.sortedBy { it.findAnnotation<ObjectType>()!!.objectType.bitSetIndex }
         .forEach { clazz ->
@@ -91,25 +89,28 @@ fun main(vararg args: String) {
                     try {
                         val result = func.call(obj);
 
-                        val resultStr = parseValueToString(result ?: "")
-
                         if (!printOkFunctions.contains(func)) {
-                            println(
-                                "${clazz.simpleName}/${
-                                    obj.getToken().toHexString(HexFormat.UpperCase)
-                                }/${func.name} -- $resultStr"
-                            )
+                            val resultStr = parseValueToString(result ?: "<null>")
+                            if (printOk) {
+                                println(
+                                    "${clazz.simpleName}/${
+                                        obj.getToken().toHexString(HexFormat.UpperCase)
+                                    }/${func.name} -- $resultStr"
+                                )
+                            }
                             if (printingOkFunctions.computeIfAbsent(func) { AtomicInteger() }.incrementAndGet() > 15) {
                                 printOkFunctions.add(func)
                             }
                         }
                         successes++
                     } catch (e: Exception) {
-                        println(
-                            "${clazz.simpleName}/${
-                                obj.getToken().toHexString(HexFormat.UpperCase)
-                            }/${func.name} -- !!FAILED!! -- ${e.message}"
-                        )
+                        if (printErrors) {
+                            println(
+                                "${clazz.simpleName}/${
+                                    obj.getToken().toHexString(HexFormat.UpperCase)
+                                }/${func.name} -- !!FAILED!! -- ${e.message}"
+                            )
+                        }
                         failures++
                         failureCombinations.computeIfAbsent(clazz) { ConcurrentHashMap() }
                             .computeIfAbsent(func.name) { AtomicLong() }

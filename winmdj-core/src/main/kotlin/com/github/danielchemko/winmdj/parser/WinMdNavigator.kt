@@ -3,6 +3,7 @@ package com.github.danielchemko.winmdj.parser
 import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType
 import com.github.danielchemko.winmdj.core.autoobject.model.CLRMetadataType.*
 import com.github.danielchemko.winmdj.core.mdspec.*
+import com.github.danielchemko.winmdj.util.convertToInt
 import com.github.danielchemko.winmdj.util.fillObject
 import com.github.danielchemko.winmdj.util.parsePrimitive
 import java.io.RandomAccessFile
@@ -46,10 +47,14 @@ private val SECTION_DELAY_IMPORT_DESCRIPTOR = 13
 private val SECTION_CLR = 14
 private val SECTION_RESERVED = 14
 
+public sealed interface NavigatorQuirk
+
+public object ResolutionScopeAsShort : NavigatorQuirk
+
 /**
  * Not hardened for thread safety, and it's only designed to be used for a single WinMD file per instance... early days
  */
-class WinMdNavigator {
+class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) {
     private lateinit var dosHeader: DosHeader
     private lateinit var ntHeader32: NTHeader32
     private lateinit var ntHeader64: NTHeader64
@@ -59,10 +64,11 @@ class WinMdNavigator {
     private lateinit var guidTable: StreamRange
     private lateinit var tablesTable: StreamRange
     private lateinit var userStringsTable: StreamRange
-    private val clrObjectTables: MutableMap<CLRMetadataType, NavigationTable> = ConcurrentHashMap()
+    private val clrObjectTables: MutableMap<CLRMetadataType, NavigationTable> = EnumMap(CLRMetadataType::class.java)
+    private val columnLayouts: MutableMap<CLRMetadataType, ColumnLayout> = EnumMap(CLRMetadataType::class.java)
 
-    //    private val tableCounts: MutableMap<MetadataType, UInt> = ConcurrentHashMap()
-    private val columnLayouts: MutableMap<CLRMetadataType, ColumnLayout> = ConcurrentHashMap()
+    /* Hold full table scans  */
+    val reverseLookupSingulars: MutableMap<LookupTable, MutableMap<Any, Any?>> = ConcurrentHashMap()
     private var stringLen: Int = 0
     private var guidLen: Int = 0
     private var blobLen: Int = 0
@@ -152,17 +158,14 @@ class WinMdNavigator {
         }
 
         // Fetch Metadata version Length
-        // auto version_length = m_view.as<uint32_t>(offset + 12);
         byteBuffer.position(metaDataPtr + 12)
         val versionLength = byteBuffer.getInt()
 
         // Fetch Metadata stream count
-        // auto stream_count = m_view.as<uint16_t>(offset + version_length + 18);
         byteBuffer.position(metaDataPtr + versionLength + 18)
         val streamCount = byteBuffer.getShort()
 
         // Iterator over the tables
-        // auto view = m_view.seek(offset + version_length + 20);
         byteBuffer.position(metaDataPtr + versionLength + 20)
 
         repeat((0 until streamCount).count()) {
@@ -225,12 +228,14 @@ class WinMdNavigator {
                 table.columnLayout = getColumnLayout(table.type)
                 table.size = table.rowCount * table.columnLayout.rowWidth
                 clrTableRoot += table.size
-                println("Table Start: ${table.type.toString().padStart(16, ' ')} -- ${table.startIndex.toHexString(HexFormat.UpperCase)} -- ${table.columnLayout.columnSizes}")
+                println(
+                    "Table Start: ${table.type.toString().padStart(25, ' ')} -- ${
+                        table.startIndex.toHexString(
+                            HexFormat.UpperCase
+                        )
+                    } -- ${table.columnLayout.columnSizes}"
+                )
             }
-    }
-
-    private fun printPos(byteBuffer: ByteBuffer) {
-        println("Position: ${byteBuffer.position()}")
     }
 
     /** Identify the section containing the specified virtual address */
@@ -270,7 +275,14 @@ class WinMdNavigator {
 //                TYPE_REF -> arrayOf(compositeIndexSize(ResolutionScope::class), stringLen, stringLen)
                 // TODO In Windows.Win32.winmd, TYPE_REF is supposed to be 4 bytes because the composite index size
                 //  of ResolutionScope doesn't fit into a 2 byte container!?
-                TYPE_REF -> arrayOf(2, stringLen, stringLen)
+                // 59.0.13-preview counts [1 + 366 + 5 + 16067] == 16439 but the maximum number of shorts for a 2 bit
+                // padded interface is 16383
+                TYPE_REF -> arrayOf(
+                    if (quirks.contains(ResolutionScopeAsShort)) 2 else compositeIndexSize(
+                        ResolutionScope::class
+                    ), stringLen, stringLen
+                )
+
                 TYPE_DEF -> arrayOf(
                     4,
                     stringLen,
@@ -440,16 +452,6 @@ class WinMdNavigator {
     }
 }
 
-private fun convertToInt(genericPtr: Any): Int {
-    return when (genericPtr) {
-        is UByte -> return genericPtr.toInt()
-        is UShort -> return genericPtr.toInt()
-        is UInt -> return genericPtr.toInt()
-        is ULong -> return genericPtr.toInt()
-        else -> throw IllegalStateException("Unable to convert ${genericPtr::class.simpleName} to Int")
-    }
-}
-
 private fun bitsNeeded(vae: Int): Byte {
     var value = vae
     value--
@@ -466,3 +468,5 @@ private fun bitsNeeded(vae: Int): Byte {
 
     return bits
 }
+
+data class LookupTable(val type: CLRMetadataType, val column: Int)
