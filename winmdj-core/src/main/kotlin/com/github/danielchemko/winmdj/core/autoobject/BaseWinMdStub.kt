@@ -2,13 +2,10 @@ package com.github.danielchemko.winmdj.core.autoobject
 
 import com.github.danielchemko.winmdj.core.MdObjectMapper
 import com.github.danielchemko.winmdj.core.mdspec.*
-import com.github.danielchemko.winmdj.parser.LookupTable
 import com.github.danielchemko.winmdj.parser.WinMdNavigator
-import com.github.danielchemko.winmdj.util.convertToInt
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.isSuperclassOf
@@ -141,31 +138,9 @@ class BaseWinMdStub(
                 is UByte -> byteArrayOf(tableValue.toByte())
                 is UShort -> ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(tableValue.toShort())
                     .array()
-//                    byteArrayOf(
-//                    (tableValue.toInt() shr 8).toByte(),
-//                    (tableValue and 255u).toByte()
-//                )
 
                 is UInt -> ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(tableValue.toInt()).array()
-//                    byteArrayOf(
-//                    (tableValue.toInt() shr 24).toByte(),
-//                    (tableValue.toInt() shr 16).toByte(),
-//                    (tableValue.toInt() shr 8).toByte(),
-//                    (tableValue and 255u).toByte()
-//                )
-
                 is ULong -> ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(tableValue.toLong()).array()
-//                byteArrayOf(
-//                    (tableValue.toInt() shr 56).toByte(),
-//                    (tableValue.toInt() shr 48).toByte(),
-//                    (tableValue.toInt() shr 40).toByte(),
-//                    (tableValue.toInt() shr 32).toByte(),
-//                    (tableValue.toInt() shr 24).toByte(),
-//                    (tableValue.toInt() shr 16).toByte(),
-//                    (tableValue.toInt() shr 8).toByte(),
-//                    (tableValue and 255u).toByte()
-//                )
-
                 else -> throw IllegalStateException("$tableValue cannot be converted into a Bitset")
             }
         )
@@ -216,6 +191,10 @@ class BaseWinMdStub(
         val compatibleTypes = interfaceClazz.sealedSubclasses.map { it.findAnnotation<ObjectType>()!!.objectType to it }
         val targetTableClazz: KClass<out WinMdObject>?
         val rowNum: Int
+
+        //
+        // TODO most of this moved into navigator for reuse
+        //
         when (val fieldPointer = getObjectTableValue(type, columnIndex)) {
             is UByte -> throw IllegalStateException("Bytes cannot hold pointer references")
             is UShort -> {
@@ -267,40 +246,42 @@ class BaseWinMdStub(
         return getObjectMapper().getCursor(targetTableClazz.java).get(rowNumber.toString().toInt())
     }
 
-    private fun getChildListHeadRow(
-        originType: CLRMetadataType,
-        sourceRow: Int,
-        column: Int,
-        childListTerminator: Int
-    ): Int {
-        if (childListTerminator == CHILD_LIST_TERMINATOR_REPEATING) {
-            val firstRowValue = getRandomObjectTableValue(originType, sourceRow, column)
-            var rowRef = sourceRow
-            while (rowRef > 0) {
-                if (getRandomObjectTableValue(originType, rowRef, column) != firstRowValue) {
-                    return rowRef + 1
-                } else {
-                    rowRef--
-                }
-            }
-            return 1 // We're at the top of the table, and we never found a non-matching result
-        } else if (childListTerminator == CHILD_LIST_TERMINATOR_ASCENDING) {
-            var lastRowValue = getRandomObjectTableValue(originType, sourceRow, column).toString().toInt()
-            var rowRef = sourceRow
-            while (rowRef > 0) {
-                val currRowValue = getRandomObjectTableValue(originType, rowRef, column).toString().toInt()
-                if (currRowValue >= lastRowValue) {
-                    return rowRef + 1
-                } else {
-                    lastRowValue = currRowValue
-                    rowRef--
-                }
-            }
-            return 1 // We're at the top of the table, and we never found a higher integer
-        } else {
-            throw IllegalStateException("Child list terminator $childListTerminator not supported")
-        }
-    }
+//    private fun getChildListHeadRow(
+//        originType: CLRMetadataType,
+//        sourceRow: Int,
+//        column: Int,
+//        childListTerminator: Int
+//    ): Int {
+//        if (childListTerminator == CHILD_LIST_TERMINATOR_REPEATING) {
+//            val firstRowValue = getRandomObjectTableValue(originType, sourceRow, column)
+//            var rowRef = sourceRow - 1
+//            while (rowRef > 0) {
+//                if (getRandomObjectTableValue(originType, rowRef, column) != firstRowValue) {
+//                    return rowRef + 1
+//                } else {
+//                    rowRef--
+//                }
+//            }
+//            return 1 // We're at the top of the table, and we never found a non-matching result
+//        } else if (childListTerminator == CHILD_LIST_TERMINATOR_ASCENDING) {
+//            var lastRowValue = getRandomObjectTableValue(originType, sourceRow, column).toString().toInt()
+//            var rowRef = sourceRow
+//            while (rowRef > 0) {
+//                val currRowValue = getRandomObjectTableValue(originType, rowRef, column).toString().toInt()
+//                if (currRowValue >= lastRowValue) {
+//                    return rowRef + 1
+//                } else {
+//                    lastRowValue = currRowValue
+//                    rowRef--
+//                }
+//            }
+//            return 1 // We're at the top of the table, and we never found a higher integer
+//        } else if (childListTerminator == CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL) {
+//            TODO()
+//        } else {
+//            throw IllegalStateException("Child list terminator $childListTerminator not supported")
+//        }
+//    }
 
     private fun calculateReversePtr(
         returnType: KClass<out WinMdObject>,
@@ -321,61 +302,143 @@ class BaseWinMdStub(
      * 3. RETURN TYPE is Singular (Interface); Ordinal determined by the first function on remote which contains this matching return type
      * 4. RETURN TYPE is Plural (Interface); Ordinal determined by the first function on remote which contains this matching return type
      */
-    override fun <T : Any> computeReverseLookup(
-        originType: CLRMetadataType,
-        originClass: KClass<*>,
-        ordinal: Int,
-        subOrdinal: Int,
-        childListTerminator: Int,
-        returnType: KClass<T>,
+    override fun computeReverseLookup(
+        originClass: KClass<out WinMdObject>,
+        returnClassColumn: Int,
+        returnBaseClass: KClass<*>,
         returnTypeIsList: Boolean,
-    ): T? {
-        if (returnTypeIsList) {
-            if (WinMdObject::class.isSuperclassOf(returnType)) {
-                val destinationType = returnType.findAnnotation<ObjectType>()!!.objectType
+    ): Any? {
+        // Because we're a reverse relationship, we fetch the direct pointer metadata from the class defining it, and
+        // solve their problem in reverse
 
-                val selfToken = getRowNumber()
-                val foreignCursor = getObjectMapper().getCursor(returnType.java as Class<out WinMdObject>)
+        val forwardPtrColumnInfo = getColumnInfo(returnBaseClass, returnClassColumn)
+        val forwardPtrReturnClass = getColumnClassType(returnBaseClass, returnClassColumn)!!
+        val forwardPtrColumnBase = getColumnBaseClassType(returnBaseClass, returnClassColumn)
+        val forwardPtrBaseIsWinMd = WinMdObject::class.isSuperclassOf(forwardPtrColumnBase)
 
-                val max = getNavigator().getCount(destinationType)
-                return (1..max)
-                    .filter { row -> getRandomObjectTableValue(destinationType, row, ordinal) == selfToken }
-                    .map { row -> foreignCursor.get(row) }.toList() as T
-            } else {
-                // Interface type matching
-                TODO()
-            }
+        // Determine if the expected return data
+        val returnClassBaseIsWinMd = if (WinMdObject::class.isSuperclassOf(returnBaseClass)) {
+            true
+        } else if (WinMdCompositeReference::class.isSuperclassOf(returnBaseClass)) {
+            false
         } else {
-            //TODO determine if this is a child reference or a child list head... only way currently is subOrdinal > -1???
-            val reverseRowTarget: Int
-            if (subOrdinal > -1) {
-                reverseRowTarget = getChildListHeadRow(originType, getRowNumber(), subOrdinal, childListTerminator)
-                if (reverseRowTarget == 0) {
-                    return null
+            throw IllegalStateException("Unsolvable class $returnBaseClass")
+        }
+
+        val targetRowNumber = getRowNumber()
+
+        when (forwardPtrColumnInfo.table) {
+            LookupType.TARGET_LIST -> {
+                // The Singular -> Plural
+                when (forwardPtrColumnInfo.childListTerminator) {
+                    CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL -> {
+                        return if (forwardPtrBaseIsWinMd) {
+                            val originType = getObjectType(originClass).objectType
+                            val type = getObjectType(returnBaseClass as KClass<out WinMdObject>).objectType
+                            val rowNum =
+                                navigator.reverseLookupRangeRow(originType, type, returnClassColumn, targetRowNumber)
+                                    ?: return null
+                            return objectMapper.getCursor(returnBaseClass.java).get(rowNum)
+                        } else {
+                            (returnBaseClass as KClass<out WinMdCompositeReference>).sealedSubclasses.firstNotNullOfOrNull { ifaceImplClazz ->
+                                TODO()
+//                                val type = getObjectType(ifaceImplClazz as KClass<out WinMdObject>).objectType
+//                                val rowNum = navigator.reverseLookupRangeRow(type, returnClassColumn, targetRowNumber) ?: return null
+//                                return objectMapper.getCursor(returnBaseClass.java).get(rowNum)
+                            }
+                        }
+                    }
+
+                    CHILD_LIST_TERMINATOR_REPEATING -> {
+                        TODO()
+                    }
+
+                    CHILD_LIST_TERMINATOR_ASCENDING -> {
+                        TODO()
+                    }
+
+                    else -> throw IllegalStateException("Unable to solve reverse target list when we don't have a child terminator strategy")
                 }
-            } else {
-                reverseRowTarget = getRowNumber()
             }
 
-            if (WinMdObject::class.isSuperclassOf(returnType)) {
-                val destinationType = returnType.findAnnotation<ObjectType>()!!.objectType
-                return getReverseReferentSingle(destinationType, ordinal, returnType, reverseRowTarget)
-            } else {
-                returnType.sealedSubclasses.forEach { interfaceImplClazz ->
-                    val reverseRowTargetPtr = calculateReversePtr(
-                        originClass as KClass<out WinMdObject>,
-                        returnType as KClass<out WinMdCompositeReference>,
-                        reverseRowTarget
-                    )
-                    val candidateType = interfaceImplClazz.findAnnotation<ObjectType>()!!.objectType
-                    getReverseReferentSingle(
-                        candidateType,
-                        ordinal,
-                        returnType,
-                        reverseRowTargetPtr
-                    )?.let { return it as T }
+            LookupType.TARGET -> {
+                return if (returnTypeIsList) {
+                    if (returnClassBaseIsWinMd) {
+                        val returnType = getObjectType(returnBaseClass as KClass<out WinMdObject>).objectType
+                        objectMapper.getCursor(returnBaseClass.java).map { it }
+                            .filter { stub ->
+                                val objectPtr = stub.getStub().getObjectTableValue(returnType, returnClassColumn)
+                                isStubMatches(
+                                    originClass,
+                                    forwardPtrReturnClass,
+                                    returnClassColumn,
+                                    forwardPtrBaseIsWinMd,
+                                    targetRowNumber,
+                                    objectPtr
+                                )
+                            }
+                    } else {
+                        objectMapper.getInterfaceCursor(returnBaseClass.java as Class<out WinMdCompositeReference>)
+                            .map { it }.filter { stub ->
+                                val returnType = getObjectType(stub::class).objectType
+                                val objectPtr = stub.getStub().getObjectTableValue(returnType, returnClassColumn)
+                                isStubMatches(
+                                    originClass,
+                                    forwardPtrReturnClass,
+                                    returnClassColumn,
+                                    forwardPtrBaseIsWinMd,
+                                    targetRowNumber,
+                                    objectPtr
+                                )
+                            }
+                    }.toList()
+                } else {
+                    if (forwardPtrBaseIsWinMd) {
+                        val type = getObjectType(returnBaseClass as KClass<out WinMdObject>).objectType
+                        val rowNum = navigator.reverseLookupRow(type, returnClassColumn, targetRowNumber)
+                        return if (rowNum == null || rowNum < 0) {
+                            null
+                        } else {
+                            objectMapper.getCursor(returnBaseClass.java).get(rowNum + 1)
+                        }
+                    } else {
+                        return (forwardPtrReturnClass as KClass<out WinMdCompositeReference>).sealedSubclasses.firstNotNullOfOrNull { ifaceImplClazz ->
+                            val type = getObjectType(ifaceImplClazz as KClass<out WinMdObject>).objectType
+                            val rowNum = navigator.reverseLookupRow(type, returnClassColumn, targetRowNumber)
+                            if (rowNum == null || rowNum < 0) {
+                                null
+                            } else {
+                                objectMapper.getCursor(ifaceImplClazz.java as Class<out WinMdObject>)
+                                    .get(rowNum + 1) as Any?
+                            }
+                        }
+                    }
                 }
-                return null // No Interfaces have the row target
+            }
+
+            else -> {
+                throw IllegalStateException("Unable to solve reverse lookup when the reverse isn't a TARGET_LIST or TARGET")
+            }
+        }
+    }
+
+    private fun isStubMatches(
+        originClass: KClass<*>,
+        returnBaseClass: KClass<*>,
+        returnClassColumn: Int,
+        forwardPtrBaseIsWinMd: Boolean,
+        targetRowNumber: Int,
+        objectPtr: Any,
+    ): Boolean {
+        return if (forwardPtrBaseIsWinMd) {
+            objectPtr == targetRowNumber
+        } else {
+            val typeAndRow =
+                navigator.calculateInterfacePtr(returnBaseClass as KClass<out WinMdCompositeReference>, objectPtr)
+            if (typeAndRow == null) {
+                false
+            } else {
+                originClass == typeAndRow.first && typeAndRow.second == targetRowNumber
             }
         }
     }
@@ -386,37 +449,8 @@ class BaseWinMdStub(
         kClass: KClass<T>,
         matchValue: Any
     ): T? {
-        val rowCount = navigator.getCount(remoteType)
         val matchValueInt = matchValue.toString().toInt()
-
-        val resolvedLookupTable =
-            navigator.reverseLookupSingulars.computeIfAbsent(
-                LookupTable(
-                    remoteType,
-                    remoteColumnIndex
-                )
-            ) { lookupTable ->
-                val startTime = System.nanoTime()
-                try {
-                    val tableLookup = ConcurrentHashMap<Any, Any?>()
-                    (1..rowCount).forEach { row ->
-                        tableLookup[convertToInt(
-                            getRandomObjectTableValue(
-                                lookupTable.type,
-                                row,
-                                lookupTable.column
-                            )
-                        )] = row
-                    }
-                    tableLookup
-                } finally {
-                    val duration = System.nanoTime() - startTime
-                    println("Cache build [$remoteType/$remoteColumnIndex] took ${duration / 1000000.0}ms")
-                }
-            }
-
-        val foundRow = resolvedLookupTable[matchValueInt]?.toString()?.toInt() ?: return null
-
+        val foundRow = navigator.reverseLookupRow(remoteType, remoteColumnIndex, matchValueInt) ?: return null
         return getObjectMapper().getCursor(kClass.java as Class<out WinMdObject>).get(foundRow) as T
     }
 }

@@ -22,8 +22,16 @@ class StubClassLayoutImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "ClassLayout/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {

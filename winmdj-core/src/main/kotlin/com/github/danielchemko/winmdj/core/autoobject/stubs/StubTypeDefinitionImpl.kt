@@ -22,8 +22,16 @@ class StubTypeDefinitionImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "TypeDefinition/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -43,24 +51,29 @@ class StubTypeDefinitionImpl(
         return stub.lookupBitset(CLRMetadataType.TYPE_DEF, 0)
     }
 
+    override fun getExtends(): com.github.danielchemko.winmdj.core.mdspec.TypeDefOrRef? {
+        return stub.lookupInterfaceReferent(
+            CLRMetadataType.TYPE_DEF,
+            3,
+            com.github.danielchemko.winmdj.core.mdspec.TypeDefOrRef::class
+        )
+    }
+
     override fun getFields(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.Field> {
         val column =
             return stub.lookupList(
                 CLRMetadataType.TYPE_DEF,
                 4,
-                2,
-                2,
+                -1,
+                3,
                 com.github.danielchemko.winmdj.core.mdspec.Field::class
             )
     }
 
     override fun getInterfaceDecl(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.InterfaceImplementation> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
             TypeDefinition::class,
             1,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.InterfaceImplementation::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.InterfaceImplementation>
@@ -68,23 +81,26 @@ class StubTypeDefinitionImpl(
 
     override fun getInterfaceImpl(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.InterfaceImplementation> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
             TypeDefinition::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.InterfaceImplementation::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.InterfaceImplementation>
     }
 
-    override fun getMethodImplementations(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.MethodImplementation> {
+    override fun getMethodBody(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.MethodImplementation> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
+            TypeDefinition::class,
+            1,
+            com.github.danielchemko.winmdj.core.mdspec.MethodImplementation::class,
+            true,
+        )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.MethodImplementation>
+    }
+
+    override fun getMethodDeclaration(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.MethodImplementation> {
+        return getStub().computeReverseLookup(
             TypeDefinition::class,
             2,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.MethodImplementation::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.MethodImplementation>
@@ -95,8 +111,8 @@ class StubTypeDefinitionImpl(
             return stub.lookupList(
                 CLRMetadataType.TYPE_DEF,
                 5,
-                4,
-                2,
+                -1,
+                3,
                 com.github.danielchemko.winmdj.core.mdspec.MethodDefinition::class
             )
     }
@@ -109,20 +125,9 @@ class StubTypeDefinitionImpl(
         return stub.lookupString(CLRMetadataType.TYPE_DEF, 2)
     }
 
-    override fun getParent(): com.github.danielchemko.winmdj.core.mdspec.TypeDefOrRef? {
-        return stub.lookupInterfaceReferent(
-            CLRMetadataType.TYPE_DEF,
-            3,
-            com.github.danielchemko.winmdj.core.mdspec.TypeDefOrRef::class
-        )
-    }
-
     override fun getPropertyMaps(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.PropertyMap> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
             TypeDefinition::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.PropertyMap::class,
             true,
@@ -131,10 +136,7 @@ class StubTypeDefinitionImpl(
 
     override fun getCustomAttribute(): com.github.danielchemko.winmdj.core.mdspec.CustomAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
             TypeDefinition::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.CustomAttribute::class,
             false,
@@ -143,11 +145,8 @@ class StubTypeDefinitionImpl(
 
     override fun getEvents(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.Event> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
             TypeDefinition::class,
             2,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.Event::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.Event>
@@ -155,11 +154,8 @@ class StubTypeDefinitionImpl(
 
     override fun getGenericParameters(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.GenericParameter> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
             TypeDefinition::class,
             2,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.GenericParameter::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.GenericParameter>
@@ -167,10 +163,7 @@ class StubTypeDefinitionImpl(
 
     override fun getMemberReference(): com.github.danielchemko.winmdj.core.mdspec.MemberReference? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
             TypeDefinition::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.MemberReference::class,
             false,
@@ -179,11 +172,8 @@ class StubTypeDefinitionImpl(
 
     override fun getSecurityAttribute(): com.github.danielchemko.winmdj.core.mdspec.SecurityAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
             TypeDefinition::class,
             1,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.SecurityAttribute::class,
             false,
         ) as com.github.danielchemko.winmdj.core.mdspec.SecurityAttribute?
@@ -191,11 +181,8 @@ class StubTypeDefinitionImpl(
 
     override fun getSubTypes(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.TypeDefinition> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_DEF,
             TypeDefinition::class,
             3,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.TypeDefinition::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.TypeDefinition>

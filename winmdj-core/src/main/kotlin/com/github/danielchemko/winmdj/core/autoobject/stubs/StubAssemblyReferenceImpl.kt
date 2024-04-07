@@ -22,8 +22,16 @@ class StubAssemblyReferenceImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "AssemblyReference/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -73,10 +81,7 @@ class StubAssemblyReferenceImpl(
 
     override fun getChildTypeReferences(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.TypeReference> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.ASSEMBLY_REF,
             AssemblyReference::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.TypeReference::class,
             true,
@@ -85,10 +90,7 @@ class StubAssemblyReferenceImpl(
 
     override fun getCustomAttribute(): com.github.danielchemko.winmdj.core.mdspec.CustomAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.ASSEMBLY_REF,
             AssemblyReference::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.CustomAttribute::class,
             false,

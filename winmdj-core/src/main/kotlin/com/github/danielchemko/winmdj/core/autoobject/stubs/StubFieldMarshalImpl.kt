@@ -22,8 +22,16 @@ class StubFieldMarshalImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "FieldMarshal/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -43,7 +51,7 @@ class StubFieldMarshalImpl(
         return stub.lookupBlob(CLRMetadataType.FIELD_MARSHAL, 1)
     }
 
-    override fun parent(): com.github.danielchemko.winmdj.core.mdspec.HasFieldMarshal? {
+    override fun getParent(): com.github.danielchemko.winmdj.core.mdspec.HasFieldMarshal? {
         return stub.lookupInterfaceReferent(
             CLRMetadataType.FIELD_MARSHAL,
             0,

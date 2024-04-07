@@ -7,7 +7,7 @@ sealed interface ValueEnum<T, R> {
     fun getCode(): Any
 }
 
-
+// TODO fixme
 fun <T : ValueEnum<R, *>, R> BitSet.marshalInto(enumClass: KClass<T>): T {
 //    enumClass.java.enumConstants.map { (it as ValueEnum<*,*>).getCode() == this. }
     return enumClass.java.enumConstants.first { this.get((it as ValueEnum<*, *>).getCode().toString().toInt()) }

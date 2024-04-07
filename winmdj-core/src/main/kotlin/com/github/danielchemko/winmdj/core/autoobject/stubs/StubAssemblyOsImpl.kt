@@ -22,8 +22,16 @@ class StubAssemblyOsImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "AssemblyOs/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {

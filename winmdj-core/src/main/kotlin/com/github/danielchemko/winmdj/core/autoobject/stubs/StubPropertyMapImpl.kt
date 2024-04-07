@@ -22,8 +22,16 @@ class StubPropertyMapImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "PropertyMap/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -51,8 +59,8 @@ class StubPropertyMapImpl(
             return stub.lookupList(
                 CLRMetadataType.PROPERTY_MAP,
                 1,
-                2,
-                2,
+                -1,
+                3,
                 com.github.danielchemko.winmdj.core.mdspec.Property::class
             )
     }

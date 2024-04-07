@@ -74,12 +74,12 @@ interface TypeDefinition : WinMdObject, TypeDefOrRef, TypeOrMethodDef, HasDeclSe
     fun getNamespace(): String
 
     @ObjectColumn(TARGET, 3)
-    fun getParent(): TypeDefOrRef?
+    fun getExtends(): TypeDefOrRef?
 
-    @ObjectColumn(TARGET_LIST, 4, 2, childListTerminator = CHILD_LIST_TERMINATOR_REPEATING)
+    @ObjectColumn(TARGET_LIST, 4, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
     fun getFields(): List<Field>
 
-    @ObjectColumn(TARGET_LIST, 5, 4, childListTerminator = CHILD_LIST_TERMINATOR_REPEATING)
+    @ObjectColumn(TARGET_LIST, 5, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
     fun getMethods(): List<MethodDefinition>
 
     /* IN relationships */
@@ -87,7 +87,6 @@ interface TypeDefinition : WinMdObject, TypeDefOrRef, TypeOrMethodDef, HasDeclSe
     @ObjectColumn(REVERSE_TARGET, 0)
     fun getInterfaceImpl(): List<InterfaceImplementation>
 
-    //??
     @ObjectColumn(REVERSE_TARGET, 1)
     fun getInterfaceDecl(): List<InterfaceImplementation>
 
@@ -95,7 +94,11 @@ interface TypeDefinition : WinMdObject, TypeDefOrRef, TypeOrMethodDef, HasDeclSe
     fun getPropertyMaps(): List<PropertyMap>
 
     @ObjectColumn(REVERSE_TARGET, 2)
-    fun getMethodImplementations(): List<MethodImplementation>
+    fun getMethodDeclaration(): List<MethodImplementation>
+
+    @ObjectColumn(REVERSE_TARGET, 1)
+    fun getMethodBody(): List<MethodImplementation>
+
 
     // TODO add field bit helpers
 //    visibility
@@ -188,12 +191,15 @@ interface MethodDefinition : WinMdObject, TypeOrMethodDef, HasDeclSecurity, Memb
 
     /* IN Relationships */
 
-    @ObjectColumn(REVERSE_TARGET, 5, 4, childListTerminator = CHILD_LIST_TERMINATOR_REPEATING)
+    @ObjectColumn(REVERSE_TARGET, 5)
     fun getParent(): TypeDefinition?
 }
 
 @ObjectType(PARAM)
 interface Parameter : WinMdObject, HasConstant, HasFieldMarshal, HasCustomAttribute {
+
+    /* OUT Relationships */
+
     @ObjectColumn(BITSET, 0)
     fun getAttributes(): BitSet
 
@@ -212,6 +218,10 @@ interface Parameter : WinMdObject, HasConstant, HasFieldMarshal, HasCustomAttrib
 
     @ObjectColumn(STRING, 2)
     fun getName(): String
+
+    /* IN Relationships */
+
+
 }
 
 @ObjectType(INTERFACE_IMPL)
@@ -246,7 +256,7 @@ interface Constant : WinMdObject {
     }
 
     @ObjectColumn(TARGET, 1)
-    fun getParent(): HasConstant
+    fun getParent(): HasConstant?
 
     @ObjectColumn(BLOB, 2)
     fun getValueBlob(): ByteArray
@@ -342,7 +352,7 @@ interface CustomAttribute : WinMdObject {
 @ObjectType(FIELD_MARSHAL)
 interface FieldMarshal : WinMdObject {
     @ObjectColumn(TARGET, 0)
-    fun parent(): HasFieldMarshal?
+    fun getParent(): HasFieldMarshal?
 
     @ObjectColumn(BLOB, 1)
     fun getNativeType(): ByteArray
@@ -392,7 +402,7 @@ interface EventMap : WinMdObject {
     @ObjectColumn(TARGET, 0)
     fun getParent(): TypeDefinition?
 
-    @ObjectColumn(TARGET_LIST, 1, 2, childListTerminator = CHILD_LIST_TERMINATOR_REPEATING)
+    @ObjectColumn(TARGET_LIST, 1, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
     fun getEvents(): List<Event>
 }
 
@@ -407,12 +417,12 @@ interface Event : WinMdObject, HasSemantics, HasCustomAttribute {
     fun getName(): String
 
     @ObjectColumn(TARGET, 2)
-    fun getTypeDefOrRef(): TypeDefOrRef?
+    fun getEventType(): TypeDefOrRef?
 
     /* IN Relationships */
 
     @ObjectColumn(REVERSE_TARGET, 1)
-    fun getParent(): EventMap
+    fun getEventMap(): EventMap
 }
 
 @ObjectType(PROPERTY_MAP)
@@ -420,7 +430,7 @@ interface PropertyMap : WinMdObject {
     @ObjectColumn(TARGET, 0)
     fun getParent(): TypeDefinition?
 
-    @ObjectColumn(TARGET_LIST, 1, 2, childListTerminator = CHILD_LIST_TERMINATOR_REPEATING)
+    @ObjectColumn(TARGET_LIST, 1, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
     fun getProperties(): List<Property>
 }
 
@@ -439,11 +449,8 @@ interface Property : WinMdObject, HasConstant, HasSemantics, HasCustomAttribute 
 
     /* IN Relationships */
 
-    @ObjectColumn(REVERSE_TARGET, 1)
-    fun getParent(): EventMap
-
-    @ObjectColumn(REVERSE_TARGET, 2)
-    fun getMethodSemantic(): MethodSemantics?
+    @ObjectColumn(REVERSE_TARGET, 1, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
+    fun getPropertyMap(): PropertyMap
 }
 
 @ObjectType(METHOD_SEMANTICS)

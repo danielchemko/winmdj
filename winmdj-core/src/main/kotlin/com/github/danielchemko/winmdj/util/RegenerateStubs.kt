@@ -62,8 +62,16 @@ fun main(vararg args: String) {
 
                 val stub = BaseWinMdStub(objectMapper, navigator, index)
                 
+                override fun toString(): String {
+                   return "$interfaceName/${'$'}{getToken()}"
+                }
+                
                 override fun getStub(): WinMdStub {
                     return stub                   
+                }
+                
+                override fun getRowNumber(): Int {
+                    return getStub().getRowNumber()
                 }
 
                 override fun getToken(): UInt {
@@ -164,11 +172,9 @@ fun main(vararg args: String) {
                                     }
                                     val mandatorySuffix = if (!func.returnType.isMarkedNullable) "!!" else ""
                                     """
-                                        return getStub().computeReverseLookup(CLRMetadataType.${objectType.name},
+                                        return getStub().computeReverseLookup(
                                             ${interfaceName}::class,
                                             $ordinal,
-                                            $subOrdinal,
-                                            $childListTerminator,
                                             ${returnClz.qualifiedName}::class,
                                             $isList,
                                         )$mandatorySuffix as ${func.returnType}
@@ -192,81 +198,3 @@ fun main(vararg args: String) {
         }
     }
 }
-
-
-//                                    // Pull out the type from the list generic
-//                                    var returnClz = func.returnType.classifier!! as KClass<*>
-//                                    if (List::class.isSuperclassOf(returnClz)) {
-//                                        returnClz = func.returnType.arguments[0]!!.type!!.classifier!! as KClass<*>
-//                                        val returnClzQualified = returnClz.qualifiedName
-//
-//                                        if (WinMdObject::class.isSuperclassOf(returnClz)) {
-//                                            val type = returnClz.findAnnotation<ObjectType>()!!.objectType
-//
-//                                            // TODO Find each item in the compatible type return list
-//                                            """
-//                                                val selfToken = getStub().getRowNumber()
-//                                                val foreignCursor = getStub().getObjectMapper().getCursor(${returnClzQualified}::class.java)
-//
-//                                                val max = getStub().getNavigator().getCount(CLRMetadataType.${type.name})
-//                                                return (1 .. max)
-//                                                   .filter {row-> getStub().getRandomObjectTableValue(CLRMetadataType.${type.name}, row, 0) == selfToken }
-//                                                   .map{row->foreignCursor.get(row)}.toList()
-//                                            """.trimIndent()
-//                                        } else {
-//                                            // TODO Find each list of results from each compatible type and merge them
-//                                            """
-//                                                TODO()
-//                                                val foundItems = getObjectMapper().map { it }.filter { getValueFor() }
-//                                            """.trimIndent()
-//                                        }
-//                                    } else {
-//                                        val returnObjectType = returnClz.findAnnotation<ObjectType>()!!.objectType
-//                                        val mandatorySuffix = if (!func.returnType.isMarkedNullable) "!!" else ""
-//                                        if (WinMdObject::class.isSuperclassOf(returnClz)) {
-//                                            if (column.childListTerminator == CHILD_LIST_TERMINATOR_REPEATING) {
-//                                                """
-//                                                val stubsCursor = getStub().getObjectMapper().getCursor(${interfaceClazz.qualifiedName}::class.java)
-//                                                var rowRef = getStub().getRowNumber() - 1;
-//                                                var highestMethod: ${interfaceClazz.qualifiedName} = this
-//                                                while (rowRef >= 0) {
-//                                                    val refMethod = stubsCursor.get(rowRef--)
-//                                                    if (refMethod.getStub().getObjectTableValue(CLRMetadataType.${objectType.name}, $subOrdinal) != getStub().getObjectTableValue(CLRMetadataType.${objectType.name}, $subOrdinal)) {
-//                                                        return getStub().getReverseReferentSingle(CLRMetadataType.${returnObjectType.name},  ${tableColumn}, ${returnClz.qualifiedName}::class, highestMethod.getToken())$mandatorySuffix
-//                                                    } else {
-//                                                        highestMethod = refMethod
-//                                                    }
-//                                                }
-//                                                throw IllegalStateException("Unable to find a parent reference for Method:[${'$'}highestMethod]")
-//                                                """.trimIndent()
-//                                            } else if (column.childListTerminator == CHILD_LIST_TERMINATOR_ASCENDING) {
-//                                                """
-//                                                val stubsCursor = getStub().getObjectMapper().getCursor(${interfaceClazz.qualifiedName}::class.java)
-//                                                var rowRef = getStub().getRowNumber() - 1;
-//                                                var highestMethod: ${interfaceClazz.qualifiedName} = this
-//                                                while (rowRef >= 0) {
-//                                                    val refMethod = stubsCursor.get(rowRef--)
-//                                                    if (refMethod.getStub().getObjectTableValue(CLRMetadataType.${objectType.name}, $subOrdinal) > highestMethod.getStub().getObjectTableValue(CLRMetadataType.${objectType.name},$subOrdinal)) {
-//                                                        return getStub().getReverseReferentSingle(CLRMetadataType.${returnObjectType.name}, ${tableColumn}, ${returnClz.qualifiedName}::class, highestMethod.getToken())$mandatorySuffix
-//                                                    } else {
-//                                                        highestMethod = refMethod
-//                                                    }
-//                                                }
-//                                                throw IllegalStateException("Unable to find a parent reference for Method:[${'$'}highestMethod]")
-//                                                """.trimIndent()
-//                                            } else {
-//                                                """
-//                                                val stubsCursor = getStub().getObjectMapper().getCursor(${interfaceClazz.qualifiedName}::class.java)
-//                                                var highestMethod: ${interfaceClazz.qualifiedName} = this
-//                                                return getStub().getReverseReferentSingle(CLRMetadataType.${returnObjectType.name}, ${tableColumn}, ${returnClz.qualifiedName}::class, highestMethod.getToken())$mandatorySuffix
-//                                                """.trimIndent()
-//                                            }
-//                                        } else {
-//                                            // TODO Find first instance of the matching value within the list of candidate objects
-//                                            """
-//                                                return ${returnClz.qualifiedName}::class.sealedSubclasses.firstNotNullOf { clazz ->
-//                                                    stub.getObjectMapper().getInterfaceCursor(${returnClz.qualifiedName}::class.java).map { it }.firstOrNull()
-//                                                }
-//                                            """.trimIndent()
-//                                        }
-//                                    }

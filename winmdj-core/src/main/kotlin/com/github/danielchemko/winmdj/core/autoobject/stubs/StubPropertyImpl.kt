@@ -22,8 +22,16 @@ class StubPropertyImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "Property/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -42,32 +50,17 @@ class StubPropertyImpl(
         return stub.lookupBitset(CLRMetadataType.PROPERTY, 0)
     }
 
-    override fun getMethodSemantic(): com.github.danielchemko.winmdj.core.mdspec.MethodSemantics? {
-        return getStub().computeReverseLookup(
-            CLRMetadataType.PROPERTY,
-            Property::class,
-            2,
-            -1,
-            0,
-            com.github.danielchemko.winmdj.core.mdspec.MethodSemantics::class,
-            false,
-        ) as com.github.danielchemko.winmdj.core.mdspec.MethodSemantics?
-    }
-
     override fun getName(): kotlin.String {
         return stub.lookupString(CLRMetadataType.PROPERTY, 1)
     }
 
-    override fun getParent(): com.github.danielchemko.winmdj.core.mdspec.EventMap {
+    override fun getPropertyMap(): com.github.danielchemko.winmdj.core.mdspec.PropertyMap {
         return getStub().computeReverseLookup(
-            CLRMetadataType.PROPERTY,
             Property::class,
             1,
-            -1,
-            0,
-            com.github.danielchemko.winmdj.core.mdspec.EventMap::class,
+            com.github.danielchemko.winmdj.core.mdspec.PropertyMap::class,
             false,
-        )!! as com.github.danielchemko.winmdj.core.mdspec.EventMap
+        )!! as com.github.danielchemko.winmdj.core.mdspec.PropertyMap
     }
 
     override fun getSignature(): kotlin.ByteArray {
@@ -76,11 +69,8 @@ class StubPropertyImpl(
 
     override fun getConstant(): com.github.danielchemko.winmdj.core.mdspec.Constant? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.PROPERTY,
             Property::class,
             1,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.Constant::class,
             false,
         ) as com.github.danielchemko.winmdj.core.mdspec.Constant?
@@ -88,23 +78,17 @@ class StubPropertyImpl(
 
     override fun getCustomAttribute(): com.github.danielchemko.winmdj.core.mdspec.CustomAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.PROPERTY,
             Property::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.CustomAttribute::class,
             false,
         ) as com.github.danielchemko.winmdj.core.mdspec.CustomAttribute?
     }
 
-    override fun getSemantics(): com.github.danielchemko.winmdj.core.mdspec.MethodSemantics? {
+    override fun getMethodSemantics(): com.github.danielchemko.winmdj.core.mdspec.MethodSemantics? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.PROPERTY,
             Property::class,
             2,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.MethodSemantics::class,
             false,
         ) as com.github.danielchemko.winmdj.core.mdspec.MethodSemantics?

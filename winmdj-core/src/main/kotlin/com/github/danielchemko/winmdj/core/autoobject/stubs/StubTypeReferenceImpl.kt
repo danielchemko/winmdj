@@ -22,8 +22,16 @@ class StubTypeReferenceImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "TypeReference/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -57,10 +65,7 @@ class StubTypeReferenceImpl(
 
     override fun getChildTypeReferences(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.TypeReference> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_REF,
             TypeReference::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.TypeReference::class,
             true,
@@ -69,10 +74,7 @@ class StubTypeReferenceImpl(
 
     override fun getCustomAttribute(): com.github.danielchemko.winmdj.core.mdspec.CustomAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_REF,
             TypeReference::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.CustomAttribute::class,
             false,
@@ -81,11 +83,8 @@ class StubTypeReferenceImpl(
 
     override fun getEvents(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.Event> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_REF,
             TypeReference::class,
             2,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.Event::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.Event>
@@ -93,10 +92,7 @@ class StubTypeReferenceImpl(
 
     override fun getMemberReference(): com.github.danielchemko.winmdj.core.mdspec.MemberReference? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_REF,
             TypeReference::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.MemberReference::class,
             false,
@@ -105,11 +101,8 @@ class StubTypeReferenceImpl(
 
     override fun getSubTypes(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.TypeDefinition> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_REF,
             TypeReference::class,
             3,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.TypeDefinition::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.TypeDefinition>

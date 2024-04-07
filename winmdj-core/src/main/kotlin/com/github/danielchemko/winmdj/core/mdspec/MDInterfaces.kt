@@ -50,18 +50,16 @@ interface WinMdStub {
         childClazz: KClass<T>
     ): List<T>
 
-    fun <T : Any> computeReverseLookup(
-        originType: CLRMetadataType,
-        originClass: KClass<*>,
-        ordinal: Int,
-        subOrdinal: Int,
-        childListTerminator: Int,
-        returnType: KClass<T>,
+    fun computeReverseLookup(
+        originClass: KClass<out WinMdObject>,
+        returnClassColumn: Int,
+        returnBaseClass: KClass<*>,
         returnTypeIsList: Boolean,
-    ): T?
+    ): Any?
 }
 
 sealed interface WinMdObject {
+    fun getRowNumber(): Int
     fun getToken(): UInt
     fun getOffset(): UInt
     fun getStub(): WinMdStub
@@ -130,7 +128,7 @@ sealed interface HasDeclSecurity : WinMdCompositeReference {
 @InterfaceSpec(1, classOrder = ["Event", "Property"])
 sealed interface HasSemantics : WinMdCompositeReference {
     @ObjectColumn(REVERSE_TARGET, 2)
-    fun getSemantics(): MethodSemantics?
+    fun getMethodSemantics(): MethodSemantics?
 }
 
 @InterfaceSpec(1, classOrder = ["MethodDefinition", "MemberReference"])

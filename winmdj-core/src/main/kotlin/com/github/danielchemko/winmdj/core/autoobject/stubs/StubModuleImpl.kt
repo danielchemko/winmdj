@@ -22,8 +22,16 @@ class StubModuleImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "Module/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -60,10 +68,7 @@ class StubModuleImpl(
 
     override fun getChildTypeReferences(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.TypeReference> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.MODULE,
             Module::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.TypeReference::class,
             true,
@@ -72,10 +77,7 @@ class StubModuleImpl(
 
     override fun getCustomAttribute(): com.github.danielchemko.winmdj.core.mdspec.CustomAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.MODULE,
             Module::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.CustomAttribute::class,
             false,

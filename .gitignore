@@ -1,5 +1,7 @@
 
+# Build Artifacts
 **/target/
+dependency-reduced-pom.xml
 
 # Files used for testing which may not share the same license as the project
 **/*.winmd

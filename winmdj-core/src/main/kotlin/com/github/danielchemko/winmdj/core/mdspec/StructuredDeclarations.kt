@@ -4,6 +4,8 @@ package com.github.danielchemko.winmdj.core.mdspec
 const val CHILD_LIST_TERMINATOR_ASCENDING = 1
 /* The target remote object table column values are always the same underlying value */
 const val CHILD_LIST_TERMINATOR_REPEATING = 2
+/* The termination point of this link is the next outward number in the origin list */
+const val CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL = 3
 
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.RUNTIME)

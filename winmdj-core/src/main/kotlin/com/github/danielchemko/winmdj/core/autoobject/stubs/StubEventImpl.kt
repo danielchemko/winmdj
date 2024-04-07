@@ -22,8 +22,16 @@ class StubEventImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "Event/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -42,23 +50,16 @@ class StubEventImpl(
         return stub.lookupBitset(CLRMetadataType.EVENT, 0)
     }
 
-    override fun getName(): kotlin.String {
-        return stub.lookupTableValue(CLRMetadataType.EVENT, 1, kotlin.String::class)!!
-    }
-
-    override fun getParent(): com.github.danielchemko.winmdj.core.mdspec.EventMap {
+    override fun getEventMap(): com.github.danielchemko.winmdj.core.mdspec.EventMap {
         return getStub().computeReverseLookup(
-            CLRMetadataType.EVENT,
             Event::class,
             1,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.EventMap::class,
             false,
         )!! as com.github.danielchemko.winmdj.core.mdspec.EventMap
     }
 
-    override fun getTypeDefOrRef(): com.github.danielchemko.winmdj.core.mdspec.TypeDefOrRef? {
+    override fun getEventType(): com.github.danielchemko.winmdj.core.mdspec.TypeDefOrRef? {
         return stub.lookupInterfaceReferent(
             CLRMetadataType.EVENT,
             2,
@@ -66,25 +67,23 @@ class StubEventImpl(
         )
     }
 
+    override fun getName(): kotlin.String {
+        return stub.lookupTableValue(CLRMetadataType.EVENT, 1, kotlin.String::class)!!
+    }
+
     override fun getCustomAttribute(): com.github.danielchemko.winmdj.core.mdspec.CustomAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.EVENT,
             Event::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.CustomAttribute::class,
             false,
         ) as com.github.danielchemko.winmdj.core.mdspec.CustomAttribute?
     }
 
-    override fun getSemantics(): com.github.danielchemko.winmdj.core.mdspec.MethodSemantics? {
+    override fun getMethodSemantics(): com.github.danielchemko.winmdj.core.mdspec.MethodSemantics? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.EVENT,
             Event::class,
             2,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.MethodSemantics::class,
             false,
         ) as com.github.danielchemko.winmdj.core.mdspec.MethodSemantics?

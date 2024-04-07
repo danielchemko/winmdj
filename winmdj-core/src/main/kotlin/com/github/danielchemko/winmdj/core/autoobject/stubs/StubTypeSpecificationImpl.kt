@@ -22,8 +22,16 @@ class StubTypeSpecificationImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "TypeSpecification/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -45,10 +53,7 @@ class StubTypeSpecificationImpl(
 
     override fun getCustomAttribute(): com.github.danielchemko.winmdj.core.mdspec.CustomAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_SPEC,
             TypeSpecification::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.CustomAttribute::class,
             false,
@@ -57,11 +62,8 @@ class StubTypeSpecificationImpl(
 
     override fun getEvents(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.Event> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_SPEC,
             TypeSpecification::class,
             2,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.Event::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.Event>
@@ -69,10 +71,7 @@ class StubTypeSpecificationImpl(
 
     override fun getMemberReference(): com.github.danielchemko.winmdj.core.mdspec.MemberReference? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_SPEC,
             TypeSpecification::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.MemberReference::class,
             false,
@@ -81,11 +80,8 @@ class StubTypeSpecificationImpl(
 
     override fun getSubTypes(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.TypeDefinition> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.TYPE_SPEC,
             TypeSpecification::class,
             3,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.TypeDefinition::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.TypeDefinition>

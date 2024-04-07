@@ -65,9 +65,9 @@ class WinMdObjectCursor<T : WinMdObject>(
     fun <R> map(mapper: (T) -> R): Sequence<R> {
         val stub = createStub(1)
         return (1..count).asSequence().map { idx ->
-                stub.getStub().setRowNumberIndex(idx)
-                mapper.invoke(stub)
-            }
+            stub.getStub().setRowNumberIndex(idx)
+            mapper.invoke(stub)
+        }
     }
 
     fun forEach(consumer: (T) -> Unit) {
@@ -96,22 +96,22 @@ class WinMdInterfaceCursor<T : WinMdCompositeReference>(
     }
 
     @Suppress("UNCHECKED_CAST") // This all makes sense, TRUST ME!
-    fun <R> map(mapper: (T) -> R): Sequence<R> {
+    fun <R> map(mapper: (WinMdObject) -> R): Sequence<R> {
         return implClasses.flatMap { clazz ->
             val stub = createStub(clazz, 1)
             (1..count).asSequence()
                 .map { idx ->
                     (stub as WinMdObject).getStub().setRowNumberIndex(idx)
-                    mapper.invoke(stub as T)
+                    mapper.invoke(stub as WinMdObject)
                 }
         }.asSequence()
     }
 
-    fun find(predicate: (T) -> Boolean): T? {
+    fun find(predicate: (WinMdObject) -> Boolean): WinMdObject? {
         return map { it }.filter(predicate).firstOrNull()
     }
 
-    fun forEach(consumer: (T) -> Unit) {
+    fun forEach(consumer: (WinMdObject) -> Unit) {
         map { it }.forEach(consumer)
     }
 

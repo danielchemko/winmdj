@@ -22,8 +22,16 @@ class StubEventMapImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "EventMap/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -43,8 +51,8 @@ class StubEventMapImpl(
             return stub.lookupList(
                 CLRMetadataType.EVENT_MAP,
                 1,
-                2,
-                2,
+                -1,
+                3,
                 com.github.danielchemko.winmdj.core.mdspec.Event::class
             )
     }

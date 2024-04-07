@@ -22,8 +22,16 @@ class StubMethodDefinitionImpl(
 
     val stub = BaseWinMdStub(objectMapper, navigator, index)
 
+    override fun toString(): String {
+        return "MethodDefinition/${getToken()}"
+    }
+
     override fun getStub(): WinMdStub {
         return stub
+    }
+
+    override fun getRowNumber(): Int {
+        return getStub().getRowNumber()
     }
 
     override fun getToken(): UInt {
@@ -64,11 +72,8 @@ class StubMethodDefinitionImpl(
 
     override fun getParent(): com.github.danielchemko.winmdj.core.mdspec.TypeDefinition? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.METHOD_DEF,
             MethodDefinition::class,
             5,
-            4,
-            2,
             com.github.danielchemko.winmdj.core.mdspec.TypeDefinition::class,
             false,
         ) as com.github.danielchemko.winmdj.core.mdspec.TypeDefinition?
@@ -84,10 +89,7 @@ class StubMethodDefinitionImpl(
 
     override fun getCustomAttribute(): com.github.danielchemko.winmdj.core.mdspec.CustomAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.METHOD_DEF,
             MethodDefinition::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.CustomAttribute::class,
             false,
@@ -96,11 +98,8 @@ class StubMethodDefinitionImpl(
 
     override fun getGenericParameters(): kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.GenericParameter> {
         return getStub().computeReverseLookup(
-            CLRMetadataType.METHOD_DEF,
             MethodDefinition::class,
             2,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.GenericParameter::class,
             true,
         )!! as kotlin.collections.List<com.github.danielchemko.winmdj.core.mdspec.GenericParameter>
@@ -108,11 +107,8 @@ class StubMethodDefinitionImpl(
 
     override fun getImplementationMap(): com.github.danielchemko.winmdj.core.mdspec.ImplementationMap? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.METHOD_DEF,
             MethodDefinition::class,
             1,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.ImplementationMap::class,
             false,
         ) as com.github.danielchemko.winmdj.core.mdspec.ImplementationMap?
@@ -120,10 +116,7 @@ class StubMethodDefinitionImpl(
 
     override fun getMemberReference(): com.github.danielchemko.winmdj.core.mdspec.MemberReference? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.METHOD_DEF,
             MethodDefinition::class,
-            0,
-            -1,
             0,
             com.github.danielchemko.winmdj.core.mdspec.MemberReference::class,
             false,
@@ -132,11 +125,8 @@ class StubMethodDefinitionImpl(
 
     override fun getSecurityAttribute(): com.github.danielchemko.winmdj.core.mdspec.SecurityAttribute? {
         return getStub().computeReverseLookup(
-            CLRMetadataType.METHOD_DEF,
             MethodDefinition::class,
             1,
-            -1,
-            0,
             com.github.danielchemko.winmdj.core.mdspec.SecurityAttribute::class,
             false,
         ) as com.github.danielchemko.winmdj.core.mdspec.SecurityAttribute?

@@ -5,6 +5,7 @@ import com.github.danielchemko.winmdj.core.mdspec.CLRMetadataType.*
 import com.github.danielchemko.winmdj.util.convertToInt
 import com.github.danielchemko.winmdj.util.fillObject
 import com.github.danielchemko.winmdj.util.parsePrimitive
+import java.io.Closeable
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -28,6 +29,7 @@ private const val STREAM_USER_STRINGS = "#US"
 private val ZERO_BYTE: Byte = 0.toByte()
 private val ONE_BYTE: Byte = 1.toByte()
 
+/* Maybe some day this will be able to parse an entire COFF file, but not today */
 private val SECTION_EXPORTS = 0
 private val SECTION_IMPORTS = 1
 private val SECTION_RESOURCE = 2
@@ -49,10 +51,16 @@ public sealed interface NavigatorQuirk
 
 public object ResolutionScopeAsShort : NavigatorQuirk
 
+/* Coded index bits for short coded indices */
+private val bitMaskShort = arrayOf(1.toUShort(), 3.toUShort(), 7.toUShort(), 15.toUShort(), 31.toUShort())
+
+/* Coded index bits for int coded indices */
+private val bitMask = arrayOf(1.toUInt(), 3.toUInt(), 7.toUInt(), 15.toUInt(), 31.toUInt())
+
 /**
  * Not hardened for thread safety, and it's only designed to be used for a single WinMD file per instance... early days
  */
-class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) {
+class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) : Closeable {
     private lateinit var dosHeader: DosHeader
     private lateinit var ntHeader32: NTHeader32
     private lateinit var ntHeader64: NTHeader64
@@ -66,22 +74,30 @@ class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) {
     private val columnLayouts: MutableMap<CLRMetadataType, ColumnLayout> = EnumMap(CLRMetadataType::class.java)
 
     /* Hold full table scans  */
-    val reverseLookupSingulars: MutableMap<LookupTable, MutableMap<Any, Any?>> = ConcurrentHashMap()
+    private val reverseLookupSingulars: MutableMap<LookupTable, MutableMap<Any, Any?>> = ConcurrentHashMap()
+    private val reverseLookupSingularRanges: MutableMap<LookupTable, MutableMap<IntRange, Int>> = ConcurrentHashMap()
+
     private var stringLen: Int = 0
     private var guidLen: Int = 0
     private var blobLen: Int = 0
     private lateinit var sectionsPointers: List<ReadRegion>
+
+    private var randomAccessFile: RandomAccessFile? = null
 
     fun parseFile(path: Path) {
         if (!path.toFile().exists()) {
             throw IllegalArgumentException("Could not open file [${path}]")
         }
 
-        RandomAccessFile(path.toString(), "r").use { file ->
-            val mappedByteBuffer = file.getChannel().map(FileChannel.MapMode.READ_ONLY, 0, file.length())
+        this.randomAccessFile = RandomAccessFile(path.toString(), "r")
+        try {
+            val mappedByteBuffer =
+                randomAccessFile!!.getChannel().map(FileChannel.MapMode.READ_ONLY, 0, randomAccessFile!!.length())
             // WinMd format is LITTLE ENDIAN based
             mappedByteBuffer.order(ByteOrder.LITTLE_ENDIAN)
             parseContents(mappedByteBuffer)
+        } catch (e: Exception) {
+            randomAccessFile!!.close()
         }
     }
 
@@ -268,17 +284,7 @@ class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) {
         return columnLayouts.computeIfAbsent(type) {
             val typeLengths = when (type) {
                 MODULE -> arrayOf(2, stringLen, guidLen, guidLen, guidLen)
-//                TYPE_REF -> arrayOf(compositeIndexSize(ResolutionScope::class), stringLen, stringLen)
-                // TODO In Windows.Win32.winmd, TYPE_REF is supposed to be 4 bytes because the composite index size
-                //  of ResolutionScope doesn't fit into a 2 byte container!?
-                // 59.0.13-preview counts [1 + 366 + 5 + 16067] == 16439 but the maximum number of shorts for a 2 bit
-                // padded interface is 16383
-                TYPE_REF -> arrayOf(
-                    if (quirks.contains(ResolutionScopeAsShort)) 2 else compositeIndexSize(
-                        ResolutionScope::class
-                    ), stringLen, stringLen
-                )
-
+                TYPE_REF -> arrayOf(compositeIndexSize(ResolutionScope::class), stringLen, stringLen)
                 TYPE_DEF -> arrayOf(
                     4,
                     stringLen,
@@ -349,7 +355,7 @@ class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) {
         // types to identify their original metadata type
         val prefixBits = compositeInterface.findAnnotation<InterfaceSpec>()!!.typePrefixBits
         val totalSum =
-            compositeInterface.sealedSubclasses.sumOf { getCount(it.findAnnotation<ObjectType>()!!.objectType) }
+            compositeInterface.sealedSubclasses.maxOf { getCount(it.findAnnotation<ObjectType>()!!.objectType) }
         return if (totalSum < (1 shl (16 - prefixBits))) 2 else 4
     }
 
@@ -445,6 +451,144 @@ class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) {
         val bytes = ByteArray(length)
         byteBuffer.get(bytes)
         return bytes
+    }
+
+    fun reverseLookupRow(
+        remoteType: CLRMetadataType,
+        remoteColumnIndex: Int,
+        matchValue: Int,
+    ): Int? {
+        val resolvedLookupTable =
+            reverseLookupSingulars.computeIfAbsent(
+                LookupTable(
+                    remoteType,
+                    remoteColumnIndex
+                )
+            ) { lookupTable ->
+                val startTime = System.nanoTime()
+                val rowCount = getCount(remoteType)
+                try {
+                    val tableLookup = ConcurrentHashMap<Any, Any?>()
+                    (0 until rowCount).forEach { row ->
+                        tableLookup[convertToInt(
+                            readFromTable(
+                                lookupTable.type,
+                                row, lookupTable.column
+                            )
+                        )] = row
+                    }
+                    tableLookup
+                } finally {
+                    val duration = System.nanoTime() - startTime
+                    println("ReverseLookup Cache [$remoteType/$remoteColumnIndex] took ${duration / 1000000.0}ms")
+                }
+            }
+
+        return resolvedLookupTable[matchValue]?.toString()?.toInt() ?: return null
+    }
+
+    fun reverseLookupRangeRow(
+        referenceType: CLRMetadataType,
+        parentType: CLRMetadataType,
+        parentColumnIndex: Int,
+        targetRow: Int,
+    ): Int? {
+        return reverseLookupSingularRanges.computeIfAbsent(
+            LookupTable(
+                parentType,
+                parentColumnIndex
+            )
+        ) { lookupTable ->
+            val startTime = System.nanoTime()
+            val rowCount = getCount(parentType)
+            val targetRowCount = getCount(referenceType)
+            try {
+                val tableLookup = ConcurrentHashMap<IntRange, Int>()
+
+                var currentRangeHeadPtr = -1
+                var currentRangeParentRow = -1
+
+                (0 until rowCount).forEach { row ->
+                    val ptr = readFromTable(
+                        lookupTable.type,
+                        row, lookupTable.column
+                    ).toString().toInt()
+
+                    if (ptr in 1..targetRowCount) {
+                        if (currentRangeParentRow == -1) {
+                            currentRangeParentRow = row + 1
+                            currentRangeHeadPtr = ptr
+                        } else if (currentRangeHeadPtr != ptr) {
+                            tableLookup[IntRange(currentRangeHeadPtr, ptr - 1)] = currentRangeParentRow
+                            currentRangeParentRow = row + 1
+                            currentRangeHeadPtr = ptr
+                        }
+                    } else {
+                        println("Fault accumulating reverseLookupRangeRow to ${lookupTable.type}/$ptr")
+                    }
+                }
+
+                // Finish of the last range when we hit the bottom of the list
+                tableLookup[IntRange(currentRangeHeadPtr, targetRowCount)] = currentRangeParentRow
+
+                tableLookup
+            } finally {
+                val duration = System.nanoTime() - startTime
+                println("LookupRange Cache [$parentType/$parentColumnIndex] took ${duration / 1000000.0}ms")
+            }
+        }.entries.firstOrNull { it.key.contains(targetRow) }?.value
+    }
+
+    fun calculateInterfacePtr(
+        interfaceClazz: KClass<out WinMdCompositeReference>,
+        pointer: Any
+    ): Pair<KClass<out WinMdObject>, Int>? {
+        val interfaceSpec = interfaceClazz.findAnnotation<InterfaceSpec>()!!
+        val typePrefixBits = interfaceSpec.typePrefixBits
+        val typePrefixBitClassOrder = interfaceSpec.classOrder
+        // TODO can be done a lot more efficiently by pre-allocating a lot of these structs
+        val compatibleTypes = interfaceClazz.sealedSubclasses.map { it.findAnnotation<ObjectType>()!!.objectType to it }
+        val targetTableClazz: KClass<out WinMdObject>?
+        when (pointer) {
+            is UByte -> throw IllegalStateException("Bytes cannot hold pointer references")
+            is UShort -> {
+                val rowNum = (pointer.toInt() shr typePrefixBits)
+                return if (rowNum == 0) {
+                    null
+                } else {
+                    val tableBitset = (pointer and bitMaskShort[typePrefixBits - 1]).toInt()
+                    val targetTableClazz =
+                        compatibleTypes.firstOrNull { it.second.simpleName == typePrefixBitClassOrder[tableBitset] }?.second?.let { it as KClass<out WinMdObject> }
+                            ?: return null
+                    return targetTableClazz to rowNum
+                }
+            }
+
+            is UInt -> {
+                val rowNum = (pointer.toInt() shr typePrefixBits)
+                if (rowNum == 0) {
+                    return null
+                } else {
+                    val tableBitset = (pointer and bitMask[typePrefixBits - 1]).toInt()
+                    val targetTableClazz =
+                        compatibleTypes.firstOrNull { it.second.simpleName == typePrefixBitClassOrder[tableBitset] }?.second?.let { it as KClass<out WinMdObject> }
+                            ?: return null
+                    return targetTableClazz to rowNum
+                }
+            }
+
+            is ULong -> throw IllegalStateException("Longs cannot hold pointer references")
+
+            else -> throw IllegalStateException("${pointer::class.simpleName} cannot hold pointer references")
+        }
+    }
+
+    fun isValidPtr(targetClazz: KClass<out WinMdCompositeReference>, pointer: Any): Boolean {
+        return calculateInterfacePtr(targetClazz, pointer) != null
+    }
+
+    override fun close() {
+        randomAccessFile?.close()
     }
 }
 
