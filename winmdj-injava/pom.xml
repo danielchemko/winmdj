@@ -9,11 +9,16 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>winmdj-core</artifactId>
+    <artifactId>winmdj-injava</artifactId>
 
     <properties>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.github.danielchemko.winmdj</groupId>
+            <artifactId>winmdj-core</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 </project>

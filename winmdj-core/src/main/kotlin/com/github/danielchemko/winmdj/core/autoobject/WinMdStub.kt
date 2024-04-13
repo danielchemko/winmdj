@@ -17,35 +17,35 @@ private val bitMaskShort = arrayOf(1.toUShort(), 3.toUShort(), 7.toUShort(), 15.
 private val bitMask = arrayOf(1.toUInt(), 3.toUInt(), 7.toUInt(), 15.toUInt(), 31.toUInt())
 
 @Suppress("UNCHECKED_CAST") // We evaluate that its always T or fail
-class BaseWinMdStub(
+class WinMdStub(
     private val objectMapper: MdObjectMapper,
     private val navigator: WinMdNavigator,
     private var index: Int = 1
-) : WinMdStub {
+) {
 
-    override fun getObjectMapper(): MdObjectMapper {
+    fun getObjectMapper(): MdObjectMapper {
         return objectMapper
     }
 
-    override fun getNavigator(): WinMdNavigator {
+    fun getNavigator(): WinMdNavigator {
         return navigator
     }
 
-    override fun getToken(type: CLRMetadataType): UInt {
+    fun getToken(type: CLRMetadataType): UInt {
         val prefix = type.bitSetIndex shl 24
         return (prefix + index).toUInt()
     }
 
-    override fun setRowNumberIndex(index: Int) {
+    fun setRowNumberIndex(index: Int) {
         assert(index > 0)
         this.index = index
     }
 
-    override fun getRowNumber(): Int {
+    fun getRowNumber(): Int {
         return index
     }
 
-    override fun <T : Any> lookupTableValue(type: CLRMetadataType, columnIndex: Int, responseType: KClass<T>?): T {
+    fun <T : Any> lookupTableValue(type: CLRMetadataType, columnIndex: Int, responseType: KClass<T>?): T {
         val rawTableResult = getObjectTableValue(type, columnIndex)
 
         if (responseType == null || responseType.isInstance(rawTableResult)) {
@@ -55,22 +55,22 @@ class BaseWinMdStub(
         }
     }
 
-    override fun lookupString(type: CLRMetadataType, columnIndex: Int): String {
+    fun lookupString(type: CLRMetadataType, columnIndex: Int): String {
         val tableValue = getObjectTableValue(type, columnIndex)
         return navigator.readFromString(tableValue)
     }
 
-    override fun lookupBlob(type: CLRMetadataType, columnIndex: Int): ByteArray {
+    fun lookupBlob(type: CLRMetadataType, columnIndex: Int): ByteArray {
         val tableValue = getObjectTableValue(type, columnIndex)
         return navigator.readFromBlob(tableValue)
     }
 
-    override fun lookupGuid(type: CLRMetadataType, columnIndex: Int): ByteArray {
+    fun lookupGuid(type: CLRMetadataType, columnIndex: Int): ByteArray {
         val tableValue = getObjectTableValue(type, columnIndex)
         return navigator.readFromGuid(tableValue)
     }
 
-    override fun <T : ValueEnum<*, *>> lookupBitsetEnum(
+    fun <T : ValueEnum<*, *>> lookupBitsetEnum(
         type: CLRMetadataType,
         columnIndex: Int,
         enumClazz: KClass<T>
@@ -81,7 +81,7 @@ class BaseWinMdStub(
         return candidates.filter { it.getCode() == tableValue }.toList()
     }
 
-    override fun <T : WinMdObject> lookupList(
+    fun <T : WinMdObject> lookupList(
         type: CLRMetadataType,
         columnIndex: Int,
         subOrdinal: Int,
@@ -90,44 +90,51 @@ class BaseWinMdStub(
     ): List<T> {
         val childJClass = childClazz.java
         // TODO cache
-        val targetType = childClazz.findAnnotation<ObjectType>()!!.objectType
+        val targetType = getObjectType(childClazz).objectType
         var row = getObjectTableValue(type, columnIndex).toString().toInt()
         val maxIndex = navigator.getCount(targetType)
 
-        if (row > maxIndex) {
+        if (row < 0 || row > maxIndex) {
             println("OutOfBoundsPtr detected: $type/${getRowNumber()}/$columnIndex -> $targetType/$row > $maxIndex")
             return emptyList()
         }
 
-        val childTableSequential = childListTerminator == CHILD_LIST_TERMINATOR_ASCENDING
-
-        var oldSignatureField: Long = if (childTableSequential) {
-            -1
-        } else {
-            getRandomObjectTableValue(targetType, row, subOrdinal).toString().toLong()
+        if (childListTerminator == CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL) {
+            val rowRange = navigator.lookupRangeRow(targetType, type, subOrdinal, row) ?: return emptyList()
+            return rowRange.map { objectMapper.getCursor(childJClass).get(it) }
         }
-        val list = mutableListOf<T>()
-        do {
-            val newSignatureField = getRandomObjectTableValue(targetType, row, subOrdinal).toString().toLong()
-            if (childTableSequential) {
-                if (newSignatureField > oldSignatureField) {
-                    list.add(getObjectMapper().getCursor(childJClass).get(row++))
-                    oldSignatureField = newSignatureField
-                } else {
-                    break
-                }
-            } else {
-                if (newSignatureField == oldSignatureField) {
-                    list.add(getObjectMapper().getCursor(childJClass).get(row++))
-                } else {
-                    break
-                }
-            }
-        } while (row <= maxIndex)
-        return list
+
+        TODO()
+
+//        val childTableSequential = childListTerminator == CHILD_LIST_TERMINATOR_ASCENDING
+//
+//        var oldSignatureField: Long = if (childTableSequential) {
+//            -1
+//        } else {
+//            getRandomObjectTableValue(targetType, row, subOrdinal).toString().toLong()
+//        }
+//        val list = mutableListOf<T>()
+//        do {
+//            val newSignatureField = getRandomObjectTableValue(targetType, row, subOrdinal).toString().toLong()
+//            if (childTableSequential) {
+//                if (newSignatureField > oldSignatureField) {
+//                    list.add(getObjectMapper().getCursor(childJClass).get(row++))
+//                    oldSignatureField = newSignatureField
+//                } else {
+//                    break
+//                }
+//            } else {
+//                if (newSignatureField == oldSignatureField) {
+//                    list.add(getObjectMapper().getCursor(childJClass).get(row++))
+//                } else {
+//                    break
+//                }
+//            }
+//        } while (row <= maxIndex)
+//        return list
     }
 
-    override fun lookupBitset(
+    fun lookupBitset(
         type: CLRMetadataType,
         columnIndex: Int
     ): BitSet {
@@ -146,7 +153,7 @@ class BaseWinMdStub(
         )
     }
 
-    override fun getObjectTableValue(type: CLRMetadataType, columnIndex: Int): Any {
+    fun getObjectTableValue(type: CLRMetadataType, columnIndex: Int): Any {
         if (index > navigator.getCount(type)) {
             throw IllegalArgumentException("Invalid row index")
         }
@@ -154,7 +161,7 @@ class BaseWinMdStub(
         return navigator.readFromTable(type, index - 1, columnIndex)
     }
 
-    override fun getRandomObjectTableValue(type: CLRMetadataType, row: Int, columnIndex: Int): Any {
+    fun getRandomObjectTableValue(type: CLRMetadataType, row: Int, columnIndex: Int): Any {
         if (row > navigator.getCount(type)) {
             throw IllegalArgumentException("Invalid row index")
         }
@@ -174,12 +181,12 @@ class BaseWinMdStub(
             ?: throw IllegalStateException("Enum [${enumClazz.java.simpleName}] doesn't contain code [$value]")
     }
 
-    override fun getObjectTableOffset(type: CLRMetadataType, columnIndex: Int): Int {
+    fun getObjectTableOffset(type: CLRMetadataType, columnIndex: Int): Int {
         return navigator.getObjectTableOffset(type, index - 1, columnIndex)
     }
 
     @OptIn(ExperimentalStdlibApi::class)
-    override fun <T : WinMdCompositeReference> lookupInterfaceReferent(
+    fun <T : WinMdCompositeReference> lookupInterfaceReferent(
         type: CLRMetadataType,
         columnIndex: Int,
         interfaceClazz: KClass<T>
@@ -234,7 +241,7 @@ class BaseWinMdStub(
         return getObjectMapper().getCursor(targetTableClazz.java).get(rowNum) as T
     }
 
-    override fun <T : WinMdObject> lookupConcreteReferent(
+    fun <T : WinMdObject> lookupConcreteReferent(
         type: CLRMetadataType,
         columnIndex: Int,
         targetTableClazz: KClass<T>
@@ -302,7 +309,7 @@ class BaseWinMdStub(
      * 3. RETURN TYPE is Singular (Interface); Ordinal determined by the first function on remote which contains this matching return type
      * 4. RETURN TYPE is Plural (Interface); Ordinal determined by the first function on remote which contains this matching return type
      */
-    override fun computeReverseLookup(
+    fun computeReverseLookup(
         originClass: KClass<out WinMdObject>,
         returnClassColumn: Int,
         returnBaseClass: KClass<*>,
@@ -376,7 +383,7 @@ class BaseWinMdStub(
                                     targetRowNumber,
                                     objectPtr
                                 )
-                            }
+                            }.map { it.copy() }
                     } else {
                         objectMapper.getInterfaceCursor(returnBaseClass.java as Class<out WinMdCompositeReference>)
                             .map { it }.filter { stub ->
@@ -390,7 +397,7 @@ class BaseWinMdStub(
                                     targetRowNumber,
                                     objectPtr
                                 )
-                            }
+                            }.map { it.copy() }
                     }.toList()
                 } else {
                     if (forwardPtrBaseIsWinMd) {
@@ -403,12 +410,12 @@ class BaseWinMdStub(
                         }
                     } else {
                         return (forwardPtrReturnClass as KClass<out WinMdCompositeReference>).sealedSubclasses.firstNotNullOfOrNull { ifaceImplClazz ->
-                            val type = getObjectType(ifaceImplClazz as KClass<out WinMdObject>).objectType
+                            val type = getObjectType(returnBaseClass as KClass<out WinMdObject>).objectType
                             val rowNum = navigator.reverseLookupRow(type, returnClassColumn, targetRowNumber)
                             if (rowNum == null || rowNum < 0) {
                                 null
                             } else {
-                                objectMapper.getCursor(ifaceImplClazz.java as Class<out WinMdObject>)
+                                objectMapper.getCursor(returnBaseClass.java as Class<out WinMdObject>)
                                     .get(rowNum + 1) as Any?
                             }
                         }

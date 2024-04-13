@@ -1,6 +1,7 @@
 package com.github.danielchemko.winmdj.core.mdspec
 
 import com.github.danielchemko.winmdj.core.MdObjectMapper
+import com.github.danielchemko.winmdj.core.autoobject.WinMdStub
 import com.github.danielchemko.winmdj.core.mdspec.LookupType.REVERSE_TARGET
 import com.github.danielchemko.winmdj.parser.WinMdNavigator
 import java.util.*
@@ -15,55 +16,55 @@ import kotlin.reflect.KClass
 sealed interface WinMdCompositeReference
 
 /* All the helper methods used to power the auto-generated stubs to make them a lot simpler */
-interface WinMdStub {
-    fun setRowNumberIndex(index: Int)
-    fun getRowNumber(): Int
-    fun getObjectMapper(): MdObjectMapper
-    fun getNavigator(): WinMdNavigator
-    fun getToken(type: CLRMetadataType): UInt
-    fun getObjectTableOffset(type: CLRMetadataType, columnIndex: Int): Int
-    fun getObjectTableValue(type: CLRMetadataType, columnIndex: Int): Any
-    fun getRandomObjectTableValue(type: CLRMetadataType, row: Int, columnIndex: Int): Any
-    fun <T : Any> lookupTableValue(type: CLRMetadataType, columnIndex: Int, responseType: KClass<T>?): T
-    fun lookupString(type: CLRMetadataType, columnIndex: Int): String
-    fun lookupBlob(type: CLRMetadataType, columnIndex: Int): ByteArray
-    fun lookupGuid(type: CLRMetadataType, columnIndex: Int): ByteArray
-    fun <T : WinMdCompositeReference> lookupInterfaceReferent(
-        type: CLRMetadataType,
-        columnIndex: Int,
-        interfaceClazz: KClass<T>
-    ): T?
-
-    fun <T : WinMdObject> lookupConcreteReferent(
-        type: CLRMetadataType,
-        columnIndex: Int,
-        targetTableClazz: KClass<T>
-    ): T?
-
-    fun lookupBitset(type: CLRMetadataType, columnIndex: Int): BitSet
-    fun <T : ValueEnum<*, *>> lookupBitsetEnum(type: CLRMetadataType, columnIndex: Int, enumClazz: KClass<T>): List<T>
-    fun <T : WinMdObject> lookupList(
-        type: CLRMetadataType,
-        columnIndex: Int,
-        subOrdinal: Int,
-        childListTerminator: Int,
-        childClazz: KClass<T>
-    ): List<T>
-
-    fun computeReverseLookup(
-        originClass: KClass<out WinMdObject>,
-        returnClassColumn: Int,
-        returnBaseClass: KClass<*>,
-        returnTypeIsList: Boolean,
-    ): Any?
-}
+//interface WinMdStub {
+//    fun setRowNumberIndex(index: Int)
+//    fun getRowNumber(): Int
+//    fun getObjectMapper(): MdObjectMapper
+//    fun getNavigator(): WinMdNavigator
+//    fun getToken(type: CLRMetadataType): UInt
+//    fun getObjectTableOffset(type: CLRMetadataType, columnIndex: Int): Int
+//    fun getObjectTableValue(type: CLRMetadataType, columnIndex: Int): Any
+//    fun getRandomObjectTableValue(type: CLRMetadataType, row: Int, columnIndex: Int): Any
+//    fun <T : Any> lookupTableValue(type: CLRMetadataType, columnIndex: Int, responseType: KClass<T>?): T
+//    fun lookupString(type: CLRMetadataType, columnIndex: Int): String
+//    fun lookupBlob(type: CLRMetadataType, columnIndex: Int): ByteArray
+//    fun lookupGuid(type: CLRMetadataType, columnIndex: Int): ByteArray
+//    fun <T : WinMdCompositeReference> lookupInterfaceReferent(
+//        type: CLRMetadataType,
+//        columnIndex: Int,
+//        interfaceClazz: KClass<T>
+//    ): T?
+//
+//    fun <T : WinMdObject> lookupConcreteReferent(
+//        type: CLRMetadataType,
+//        columnIndex: Int,
+//        targetTableClazz: KClass<T>
+//    ): T?
+//
+//    fun lookupBitset(type: CLRMetadataType, columnIndex: Int): BitSet
+//    fun <T : ValueEnum<*, *>> lookupBitsetEnum(type: CLRMetadataType, columnIndex: Int, enumClazz: KClass<T>): List<T>
+//    fun <T : WinMdObject> lookupList(
+//        type: CLRMetadataType,
+//        columnIndex: Int,
+//        subOrdinal: Int,
+//        childListTerminator: Int,
+//        childClazz: KClass<T>
+//    ): List<T>
+//
+//    fun computeReverseLookup(
+//        originClass: KClass<out WinMdObject>,
+//        returnClassColumn: Int,
+//        returnBaseClass: KClass<*>,
+//        returnTypeIsList: Boolean,
+//    ): Any?
+//}
 
 sealed interface WinMdObject {
     fun getRowNumber(): Int
     fun getToken(): UInt
     fun getOffset(): UInt
     fun getStub(): WinMdStub
-    fun copy(rowNum: Int): WinMdObject
+    fun copy(rowNum: Int? = null): WinMdObject
 }
 
 @InterfaceSpec(2, classOrder = ["Module", "ModuleReference", "AssemblyReference", "TypeReference"])

@@ -76,10 +76,10 @@ interface TypeDefinition : WinMdObject, TypeDefOrRef, TypeOrMethodDef, HasDeclSe
     @ObjectColumn(TARGET, 3)
     fun getExtends(): TypeDefOrRef?
 
-    @ObjectColumn(TARGET_LIST, 4, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
+    @ObjectColumn(TARGET_LIST, 4, 4, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
     fun getFields(): List<Field>
 
-    @ObjectColumn(TARGET_LIST, 5, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
+    @ObjectColumn(TARGET_LIST, 5, 4, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
     fun getMethods(): List<MethodDefinition>
 
     /* IN relationships */
@@ -171,14 +171,14 @@ interface MethodDefinition : WinMdObject, TypeOrMethodDef, HasDeclSecurity, Memb
     MemberForwarded, CustomAttributeType, HasCustomAttribute {
     /* OUT Relationships */
 
-    @ObjectColumn(BITSET, 0)
-    fun getAttributes(): BitSet
+    @ObjectColumn(TABLE_VALUE, 0)
+    fun getRva(): UInt
 
     @ObjectColumn(BITSET, 1)
-    fun getImplementationAttributes(): BitSet
+    fun getImplFlags(): BitSet
 
-    @ObjectColumn(TABLE_VALUE, 2)
-    fun getRva(): UShort
+    @ObjectColumn(BITSET, 2)
+    fun getFlags(): BitSet
 
     @ObjectColumn(STRING, 3)
     fun getName(): String
@@ -186,13 +186,13 @@ interface MethodDefinition : WinMdObject, TypeOrMethodDef, HasDeclSecurity, Memb
     @ObjectColumn(BLOB, 4)
     fun getSignature(): ByteArray
 
-    @ObjectColumn(TARGET_LIST, 5, 1, childListTerminator = CHILD_LIST_TERMINATOR_ASCENDING)
+    @ObjectColumn(TARGET_LIST, 5, 5, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
     fun getParameters(): List<Parameter>
 
     /* IN Relationships */
 
     @ObjectColumn(REVERSE_TARGET, 5)
-    fun getParent(): TypeDefinition?
+    fun getParent(): TypeDefinition
 }
 
 @ObjectType(PARAM)
@@ -402,7 +402,7 @@ interface EventMap : WinMdObject {
     @ObjectColumn(TARGET, 0)
     fun getParent(): TypeDefinition?
 
-    @ObjectColumn(TARGET_LIST, 1, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
+    @ObjectColumn(TARGET_LIST, 1, 1, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
     fun getEvents(): List<Event>
 }
 
@@ -430,7 +430,7 @@ interface PropertyMap : WinMdObject {
     @ObjectColumn(TARGET, 0)
     fun getParent(): TypeDefinition?
 
-    @ObjectColumn(TARGET_LIST, 1, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
+    @ObjectColumn(TARGET_LIST, 1, 1, childListTerminator = CHILD_LIST_TERMINATOR_PARENT_SEQUENTIAL)
     fun getProperties(): List<Property>
 }
 

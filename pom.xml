@@ -12,6 +12,7 @@
 
     <modules>
         <module>winmdj-core</module>
+        <module>winmdj-injava</module>
         <module>winmdj-explore</module>
     </modules>
 

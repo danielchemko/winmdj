@@ -61,7 +61,7 @@ fun main(vararg args: String) {
 }
 
 @OptIn(ExperimentalStdlibApi::class)
-fun processFile(path: Path, vararg quirks: NavigatorQuirk) {
+fun processFile(path: Path, vararg quirks: NavigatorQuirk): WinMdNavigator {
     val navigator = WinMdNavigator(quirks.toSet())
     navigator.parseFile(path)
     val objectMapper = MdObjectMapper(navigator)
@@ -127,6 +127,8 @@ fun processFile(path: Path, vararg quirks: NavigatorQuirk) {
             failureCombinations.map { "${it.key.simpleName} -- ${it.value}" }.joinToString("\n")
         }"
     )
+
+    return navigator
 }
 
 @OptIn(ExperimentalStdlibApi::class)

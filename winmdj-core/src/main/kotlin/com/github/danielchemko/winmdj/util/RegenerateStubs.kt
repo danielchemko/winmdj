@@ -43,7 +43,7 @@ fun main(vararg args: String) {
             
             
             import com.github.danielchemko.winmdj.core.MdObjectMapper
-            import com.github.danielchemko.winmdj.core.autoobject.BaseWinMdStub
+            import com.github.danielchemko.winmdj.core.autoobject.WinMdStub
             import com.github.danielchemko.winmdj.core.mdspec.CLRMetadataType
             import com.github.danielchemko.winmdj.core.mdspec.*
             import com.github.danielchemko.winmdj.parser.WinMdNavigator
@@ -60,7 +60,7 @@ fun main(vararg args: String) {
                 index: Int
             ) : $interfaceName {
 
-                val stub = BaseWinMdStub(objectMapper, navigator, index)
+                private val stub = WinMdStub(objectMapper, navigator, index)
                 
                 override fun toString(): String {
                    return "$interfaceName/${'$'}{getToken()}"
@@ -82,8 +82,8 @@ fun main(vararg args: String) {
                    return stub.getObjectTableOffset(CLRMetadataType.${objectType.name}, 0).toUInt()
                 }
                 
-                override fun copy(rowNum: Int): $concreteClassName {
-                   return $concreteClassName::class.constructors.first().call(stub.getObjectMapper(), stub.getNavigator(), rowNum)
+                override fun copy(rowNum: Int?): $concreteClassName {
+                   return $concreteClassName::class.constructors.first().call(stub.getObjectMapper(), stub.getNavigator(), rowNum ?: getRowNumber())
                 }
        
             ${

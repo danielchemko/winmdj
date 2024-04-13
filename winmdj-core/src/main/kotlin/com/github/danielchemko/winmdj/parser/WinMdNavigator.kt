@@ -61,6 +61,7 @@ private val bitMask = arrayOf(1.toUInt(), 3.toUInt(), 7.toUInt(), 15.toUInt(), 3
  * Not hardened for thread safety, and it's only designed to be used for a single WinMD file per instance... early days
  */
 class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) : Closeable {
+    private lateinit var fileName: String
     private lateinit var dosHeader: DosHeader
     private lateinit var ntHeader32: NTHeader32
     private lateinit var ntHeader64: NTHeader64
@@ -85,6 +86,7 @@ class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) : Closeab
     private var randomAccessFile: RandomAccessFile? = null
 
     fun parseFile(path: Path) {
+        this.fileName = path.toFile().toString()
         if (!path.toFile().exists()) {
             throw IllegalArgumentException("Could not open file [${path}]")
         }
@@ -487,12 +489,32 @@ class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) : Closeab
         return resolvedLookupTable[matchValue]?.toString()?.toInt() ?: return null
     }
 
+    fun lookupRangeRow(
+        referenceType: CLRMetadataType,
+        parentType: CLRMetadataType,
+        parentColumnIndex: Int,
+        targetRow: Int,
+    ): IntRange? {
+        return getParentCrunch(referenceType, parentType, parentColumnIndex)
+            .firstNotNullOfOrNull { e -> if (e.key.contains(targetRow)) e.key else null }
+    }
+
     fun reverseLookupRangeRow(
         referenceType: CLRMetadataType,
         parentType: CLRMetadataType,
         parentColumnIndex: Int,
         targetRow: Int,
     ): Int? {
+        return getParentCrunch(referenceType, parentType, parentColumnIndex)
+            .entries
+            .firstOrNull { it.key.contains(targetRow) }?.value
+    }
+
+    fun getParentCrunch(
+        referenceType: CLRMetadataType,
+        parentType: CLRMetadataType,
+        parentColumnIndex: Int,
+    ): Map<IntRange, Int> {
         return reverseLookupSingularRanges.computeIfAbsent(
             LookupTable(
                 parentType,
@@ -536,7 +558,7 @@ class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) : Closeab
                 val duration = System.nanoTime() - startTime
                 println("LookupRange Cache [$parentType/$parentColumnIndex] took ${duration / 1000000.0}ms")
             }
-        }.entries.firstOrNull { it.key.contains(targetRow) }?.value
+        }
     }
 
     fun calculateInterfacePtr(
@@ -589,6 +611,10 @@ class WinMdNavigator(val quirks: Set<out NavigatorQuirk> = emptySet()) : Closeab
 
     override fun close() {
         randomAccessFile?.close()
+    }
+
+    fun getFileName(): String {
+        return fileName
     }
 }
 

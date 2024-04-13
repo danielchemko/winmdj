@@ -1,5 +1,7 @@
 package com.github.danielchemko.winmdj.explore.root
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import com.github.danielchemko.winmdj.core.MdObjectMapper
 import com.github.danielchemko.winmdj.core.mdspec.*
 import com.github.danielchemko.winmdj.explore.model.WinMdTreeItem
@@ -20,12 +22,12 @@ import javafx.scene.input.MouseEvent
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.Duration
 import kotlin.io.path.name
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.isSuperclassOf
-
 
 private val EXCLUDED_FUNCTIONS = setOf(
     "equals",
@@ -53,9 +55,15 @@ private val EXCLUDED_FUNCTIONS = setOf(
     "getRawType",
 )
 
+private data class RowRef(val file: String, val table: CLRMetadataType, val column: String, val row: Int)
 
 @FxmlResource("/winmd-explore-root.fxml", newStage = true, sceneX = 1800, sceneY = 750, "WinMD Explorer")
 class RootController : WinMdController() {
+    private val rowCountCache: Cache<RowRef, Int> = Caffeine.newBuilder()
+        .expireAfterAccess(Duration.ofMinutes(2))
+        .maximumSize(100000)
+        .build()
+
     @FXML
     private lateinit var assemblyView: TreeView<WinMdTreeItem>
 
@@ -174,7 +182,7 @@ class RootController : WinMdController() {
 
     @OptIn(ExperimentalStdlibApi::class)
     private fun selectTable(objectMapper: MdObjectMapper, navigator: WinMdNavigator, type: CLRMetadataType) {
-
+        metadataTableView.scrollTo(0)
         metadataTableView.columns.clear()
 
         val allFunctions = getClassInterface(type).functions
@@ -184,7 +192,7 @@ class RootController : WinMdController() {
             columnNameAndRank to function
         }.sortedBy { it.first.second }
 
-        metadataTableView.columns.addAll(columnNameAndRankAndFunction.map {
+        metadataTableView.columns.addAll(columnNameAndRankAndFunction.asSequence().map {
             val columnName = it.first.first
             val function = it.second
             val columnInfo: ObjectColumn? = function.findAnnotation<ObjectColumn>()
@@ -323,6 +331,12 @@ class RootController : WinMdController() {
                 WinMdObject::class.isSuperclassOf(returnType) -> {
                     val sourceClazz = getClassInterface(type)
                     val targetType = getObjectType(returnType as KClass<out WinMdObject>).objectType
+
+                    if (navigator.getCount(targetType) == 0) {
+                        println("Skipping column ${convertFunctionNameToColumnName(function.name)} because there are no ($targetType) declared")
+                        return@map null
+                    }
+
                     column.setCellValueFactory { r ->
                         val targetValue = r.value
 
@@ -349,21 +363,48 @@ class RootController : WinMdController() {
                             }
                         } else if (columnInfo.table == LookupType.REVERSE_TARGET) {
                             try {
-                                val reverseLookupItem: Any? = targetValue.getStub().computeReverseLookup(
-                                    sourceClazz,
-                                    columnInfo.ordinal,
-                                    returnType,
-                                    returnIsPlural
-                                )
+                                if (returnIsPlural) {
+                                    val count = rowCountCache.get(
+                                        RowRef(
+                                            navigator.getFileName(),
+                                            type,
+                                            columnName,
+                                            targetValue.getRowNumber()
+                                        )
+                                    ) {
+                                        val retr = targetValue.getStub().computeReverseLookup(
+                                            sourceClazz,
+                                            columnInfo.ordinal,
+                                            returnType,
+                                            returnIsPlural
+                                        )
+                                        if (retr is List<*>) {
+                                            retr.size
+                                        } else {
+                                            0
+                                        }
+                                    }
 
-                                if (reverseLookupItem is List<*>) {
-                                    SimpleStringProperty("${reverseLookupItem.size}") as ObservableValue<Any?>
-                                } else if (reverseLookupItem == null) {
-                                    SimpleStringProperty("") as ObservableValue<Any?>
-                                } else if (reverseLookupItem is WinMdObject) {
-                                    SimpleIntegerProperty(reverseLookupItem.getRowNumber()) as ObservableValue<Any?>
+                                    if (count == null) {
+                                        SimpleStringProperty("") as ObservableValue<Any?>
+                                    } else {
+                                        SimpleStringProperty("$count") as ObservableValue<Any?>
+                                    }
                                 } else {
-                                    TODO()
+                                    val reverseLookupItem: Any? = targetValue.getStub().computeReverseLookup(
+                                        sourceClazz,
+                                        columnInfo.ordinal,
+                                        returnType,
+                                        returnIsPlural
+                                    )
+
+                                    if (reverseLookupItem is WinMdObject) {
+                                        SimpleIntegerProperty(reverseLookupItem.getRowNumber()) as ObservableValue<Any?>
+                                    } else if (reverseLookupItem == null) {
+                                        SimpleStringProperty("") as ObservableValue<Any?>
+                                    } else {
+                                        TODO()
+                                    }
                                 }
                             } catch (e: Throwable) {
                                 e.printStackTrace()
@@ -388,6 +429,16 @@ class RootController : WinMdController() {
 
                 WinMdCompositeReference::class.isSuperclassOf(returnType) -> {
                     val sourceClazz = getClassInterface(type)
+                    val countOfAll = returnType.sealedSubclasses.sumOf { it ->
+                        val targetType = getObjectType(it as KClass<out WinMdObject>).objectType
+                        navigator.getCount(targetType)
+                    }
+
+                    if (countOfAll == 0) {
+                        println("Skipping column ${convertFunctionNameToColumnName(function.name)} because there are no (${returnType.simpleName}) declared")
+                        return@map null
+                    }
+
                     column.setCellValueFactory { r ->
                         val targetValue = r.value
 
@@ -472,7 +523,7 @@ class RootController : WinMdController() {
             }
 
             column
-        })
+        }.filterNotNull())
 
         metadataTableView.items = SortedList(
             TableListWrapper(TableList(navigator, objectMapper, getClassInterface(type), type))
